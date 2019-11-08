@@ -2,7 +2,7 @@
 title: "Thesis Proposal"
 subtitle: "Co-policing Surrounding the University of Chicago"
 author: "Adam Shelton"
-date: "10/25/2019"
+date: "11/8/2019"
 header-includes:
     - \usepackage{setspace}\doublespacing
 output: pdf_document
