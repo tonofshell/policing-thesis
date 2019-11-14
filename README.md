@@ -6,5 +6,5 @@
 - [Proposal](Documents/proposal.pdf)
 
 ## Source Code
-- [Proposal](Documents/proposal.rmd) *(R Markdown)*
+- [Proposal](Documents/proposal.Rmd) *(R Markdown)*
 - [Sources](Documents/sources.bib) *(BibTex)*
