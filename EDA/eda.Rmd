@@ -1,0 +1,70 @@
+---
+title: "Exploratory Data Analysis"
+author: "Adam Shelton"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(here)
+library(skimr)
+library(knitr)
+library(ggmap)
+library(sf)
+
+knitr::opts_chunk$set(echo = TRUE)
+
+# collpases n least common categories into an 'other' category
+collapse_to_other = function(data_set, n_categories, ...) {
+  library(tidyverse)
+  variables = data_set %>% select(...) %>% names()
+  for (variable in variables) {
+    var_table = data_set[[variable]] %>% table() %>% as_tibble() %>% arrange(-n)
+    other_cats = var_table$.[n_categories:length(var_table$.)]
+    data_set[[variable]] = data_set[[variable]] %>% as.character()
+    data_set[[variable]][data_set[[variable]] %in% other_cats] = "Other"
+  }
+  return(data_set)
+}
+```
+
+## UCPD
+```{r load_ucpd}
+incident_data = readRDS(here("Data", "cleaned_incident_data.rds"))
+```
+
+
+### Incidents
+
+#### Descriptive Statistics
+
+```{r ucpd-inc-desc-stats}
+incident_desc_stats = incident_data %>% select(-location, -reported, -occurred, -comments) %>% mutate(incident = factor(incident), disposition = factor(disposition)) %>% skim() %>% partition()
+
+incident_desc_stats$character %>% kable()
+incident_desc_stats$factor %>% kable()
+incident_desc_stats$logical %>% kable()
+incident_desc_stats$numeric %>% kable()
+incident_desc_stats$POSIXct %>% kable()
+```
+
+```{r inc-viz, fig.height=10, fig.width=8}
+chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -87.540434, top = 41.895756), maptype = "toner-background", zoom = 13))
+
+hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864), maptype = "toner-background", zoom = 15))
+
+incident_data_analysis = incident_data  %>% filter(!is.na(incident))  %>% collapse_to_other(9, incident) 
+
+chi_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat), color = "blue") + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+
+hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+
+hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + facet_wrap(~ incident) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+
+hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+
+hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + facet_wrap(~ disposition) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+```
+
+
+## CPD
