@@ -8,7 +8,7 @@ Adam Shelton
 incident_data = readRDS(here("Data", "cleaned_incident_data.rds"))
 ```
 
-### Incidents
+### Incident Reports
 
 #### Descriptive Statistics
 
@@ -65,8 +65,10 @@ incident_desc_stats$POSIXct %>% kable()
 | start          |         57 |      0.9951211 | 1998-04-27 00:00:00 | 2027-02-08 19:35:00 | 2014-10-03 01:05:00 |     11478 |
 | end            |       7157 |      0.3874005 | 2010-06-29 17:00:00 | 2019-12-01 07:45:00 | 2014-01-09 13:30:00 |      4472 |
 
+#### Visualizations
+
 ``` r
-chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -87.540434, top = 41.895756), maptype = "toner-background", zoom = 13))
+chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.720873, right = -87.522685, top = 41.895756), maptype = "toner-background", zoom = 13))
 ```
 
     ## Source : http://tile.stamen.com/toner-background/13/2100/3044.png
@@ -77,6 +79,8 @@ chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -
 
     ## Source : http://tile.stamen.com/toner-background/13/2103/3044.png
 
+    ## Source : http://tile.stamen.com/toner-background/13/2104/3044.png
+
     ## Source : http://tile.stamen.com/toner-background/13/2100/3045.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2101/3045.png
@@ -84,6 +88,8 @@ chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -
     ## Source : http://tile.stamen.com/toner-background/13/2102/3045.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2103/3045.png
+
+    ## Source : http://tile.stamen.com/toner-background/13/2104/3045.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2100/3046.png
 
@@ -93,6 +99,8 @@ chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -
 
     ## Source : http://tile.stamen.com/toner-background/13/2103/3046.png
 
+    ## Source : http://tile.stamen.com/toner-background/13/2104/3046.png
+
     ## Source : http://tile.stamen.com/toner-background/13/2100/3047.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2101/3047.png
@@ -100,6 +108,8 @@ chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -
     ## Source : http://tile.stamen.com/toner-background/13/2102/3047.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2103/3047.png
+
+    ## Source : http://tile.stamen.com/toner-background/13/2104/3047.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2100/3048.png
 
@@ -109,6 +119,8 @@ chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -
 
     ## Source : http://tile.stamen.com/toner-background/13/2103/3048.png
 
+    ## Source : http://tile.stamen.com/toner-background/13/2104/3048.png
+
     ## Source : http://tile.stamen.com/toner-background/13/2100/3049.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2101/3049.png
@@ -116,6 +128,8 @@ chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.737566, right = -
     ## Source : http://tile.stamen.com/toner-background/13/2102/3049.png
 
     ## Source : http://tile.stamen.com/toner-background/13/2103/3049.png
+
+    ## Source : http://tile.stamen.com/toner-background/13/2104/3049.png
 
 ``` r
 hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864), maptype = "toner-background", zoom = 15))
@@ -210,43 +224,81 @@ hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, rig
 ``` r
 incident_data_analysis = incident_data  %>% filter(!is.na(incident))  %>% collapse_to_other(9, incident) 
 
-chi_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat), color = "blue") + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+chi_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat), color = color_pal(3, "cool")[3], alpha = 0.4) + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 ```
 
-    ## Warning: Removed 87 rows containing missing values (geom_point).
+    ## Warning: Removed 84 rows containing missing values (geom_point).
 
 ![](eda_files/figure-gfm/inc-viz-1.png)<!-- -->
 
 ``` r
-hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+chi_map + stat_density2d(data = incident_data, aes(x = lon, y = lat, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 ```
 
-    ## Warning: Removed 287 rows containing missing values (geom_point).
+    ## Warning: Removed 90 rows containing non-finite values (stat_density2d).
 
 ![](eda_files/figure-gfm/inc-viz-2.png)<!-- -->
 
 ``` r
-hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + facet_wrap(~ incident) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+hyde_park_map + stat_density2d(data = incident_data, aes(x = lon, y = lat, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 ```
 
-    ## Warning: Removed 287 rows containing missing values (geom_point).
+    ## Warning: Removed 322 rows containing non-finite values (stat_density2d).
 
 ![](eda_files/figure-gfm/inc-viz-3.png)<!-- -->
 
 ``` r
-hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + scale_color_manual(values = color_pal(9, "discrete")) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18) 
 ```
 
-    ## Warning: Removed 272 rows containing missing values (geom_point).
+    ## Warning: Removed 287 rows containing missing values (geom_point).
 
 ![](eda_files/figure-gfm/inc-viz-4.png)<!-- -->
 
 ``` r
-hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + facet_wrap(~ disposition) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019")
+hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + scale_color_manual(values = color_pal(9, "discrete")) + facet_wrap(~ incident) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+    ## Warning: Removed 287 rows containing missing values (geom_point).
+
+![](eda_files/figure-gfm/inc-viz-5.png)<!-- -->
+
+``` r
+hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + scale_color_manual(values = color_pal(4, "discrete")) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 ```
 
     ## Warning: Removed 272 rows containing missing values (geom_point).
 
-![](eda_files/figure-gfm/inc-viz-5.png)<!-- -->
+![](eda_files/figure-gfm/inc-viz-6.png)<!-- -->
+
+``` r
+hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + scale_color_manual(values = color_pal(4, "discrete")) + facet_wrap(~ disposition) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+    ## Warning: Removed 272 rows containing missing values (geom_point).
+
+![](eda_files/figure-gfm/inc-viz-7.png)<!-- -->
 
 ## CPD
+
+``` r
+cpd_crime_data = readRDS(here("Data", "cleaned_crime_data.rds"))
+```
+
+### Crime Reports
+
+#### Descriptive Statistics
+
+#### Visualizations
+
+``` r
+chi_map + geom_point(data = cpd_crime_data, aes(x = longitude, y = latitude), color = color_pal(3, "cool")[3], alpha = 0.4) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+![](eda_files/figure-gfm/crime-viz-1.png)<!-- -->
+
+``` r
+chi_map + stat_density2d(data = cpd_crime_data, aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+![](eda_files/figure-gfm/crime-viz-2.png)<!-- -->
