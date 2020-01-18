@@ -1,4 +1,6 @@
-# Importing and Cleaning Data
+#### Importing and Cleaning Data ####
+
+### Setup ###
 library(tidyverse)
 library(lubridate)
 library(stringr)
@@ -7,8 +9,9 @@ library(jsonlite)
 library(ggmap)
 library(RSocrata)
 
-source(here("GMaps_api.R"))
-chicago_streets = read.socrata("https://data.cityofchicago.org/resource/i6bp-fvbx.json") %>% as_tibble() %>% mutate_if(is.character, str_to_lower)
+source(here("api_keys.R"))
+
+### Functions ###
 
 process_date_range = Vectorize(function(d_range, start = TRUE) {
   intervals = str_split(d_range, "to") %>% unlist() %>% str_trim()
@@ -79,12 +82,6 @@ clean_disposition = function(disp_vector) {
   disp_vector[closed] = "Closed"
   disp_vector[str_detect(disp_vector, "Clear")] = "Exceptionally Cleared"
   return(disp_vector)
-}
-
-latest_release = read_json("https://api.github.com/repos/tonofshell/ucpd-incident-data/releases/latest")
-list.files(here("Data"), pattern="ucpd_.*data_scraped_.*.csv") %>% {here("Data", .)} %>% file.remove()
-for (asset in latest_release$assets) {
-  download.file(asset$browser_download_url, here("Data", asset$name))
 }
 
 get_location_type = function(x) {
@@ -171,6 +168,18 @@ get_coords = Vectorize(function(x) {
   return(paste(location[1], ", chicago il") %>% geocode() %>% bind_rows(paste(location[2], ", chicago il") %>% geocode()) %>% summarise_all(mean) %>% format_geocode())
 })
 
+### Additional Data ###
+chicago_streets = read.socrata("https://data.cityofchicago.org/resource/i6bp-fvbx.json", socrata_app_token) %>% as_tibble() %>% mutate_if(is.character, str_to_lower)
+
+### UCPD Data ###
+latest_release = read_json("https://api.github.com/repos/tonofshell/ucpd-incident-data/releases/latest")
+list.files(here("Data"), pattern="ucpd_.*data_scraped_.*.csv") %>% {here("Data", .)} %>% file.remove()
+for (asset in latest_release$assets) {
+  download.file(asset$browser_download_url, here("Data", asset$name))
+}
+
+
+
 incident_data = list.files(here("Data"), pattern="ucpd_incident_data_scraped_*") %>% {here("Data", .)} %>% read_csv() %>% 
   fix_nas(c(":", "VOID", "Void", "void", "n/a", "N/A", "na", "NA", "No reports this date", "None")) %>% 
   mutate(Reported = Reported %>% mdy_hm(), 
@@ -240,3 +249,12 @@ names(incident_data) = str_to_lower(names(incident_data))
 
 write_csv(incident_data, here("Data", "cleaned_incident_data.csv"))
 saveRDS(incident_data, here("Data", "cleaned_incident_data.rds"))
+
+# CPD Data
+
+# (41.845899, -87.608858)  (41.732987, -87.604720) (41.731920, -87.677545)
+#approximate 4 mile radius from 57th and Ellis Ave
+cpd_crimes_data = RSocrata::read.socrata("https://data.cityofchicago.org/resource/ijzp-q8t2.json?$where=year > 2009 AND latitude between '41.732987' and '41.845899' AND longitude > -87.677545", socrata_app_token) %>% select(-c(x_coordinate, y_coordinate, location.latitude, location.longitude, location.human_address)) %>% mutate(date = as_datetime(date), updated_on = as_datetime(updated_on), arrest = as.logical(arrest), domestic = as.logical(domestic), beat = factor(beat), district = factor(district), ward = factor(ward), community_area = factor(community_area), fbi_code = factor(fbi_code), year = as.numeric(year), latitude = as.numeric(latitude), longitude = as.numeric(longitude))
+
+write_csv(cpd_crimes_data, here("Data", "cleaned_crime_data.csv"))
+saveRDS(cpd_crimes_data, here("Data", "cleaned_crime_data.rds"))
