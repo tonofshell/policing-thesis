@@ -6,32 +6,21 @@ output: github_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(knitr)
+library(cowpoke) # devtools::install_git("tonofshell/cowpoke")
 library(here)
 library(skimr)
-library(knitr)
 library(ggmap)
 library(sf)
-library(beachball) #github.com/tonofshell/beachball
+library(beachball) # devtools::install_git("tonofshell/beachball")
 library(extrafont)
+library(treemapify)
 
 windowsFonts(`Pragati Narrow` = windowsFont("Pragati Narrow"))
 
 #source("../../../theme.R")
 
-knitr::opts_chunk$set(echo = TRUE)
-
-# collpases n least common categories into an 'other' category
-collapse_to_other = function(data_set, n_categories, ...) {
-  library(tidyverse)
-  variables = data_set %>% select(...) %>% names()
-  for (variable in variables) {
-    var_table = data_set[[variable]] %>% table() %>% as_tibble() %>% arrange(-n)
-    other_cats = var_table$.[n_categories:length(var_table$.)]
-    data_set[[variable]] = data_set[[variable]] %>% as.character()
-    data_set[[variable]][data_set[[variable]] %in% other_cats] = "Other"
-  }
-  return(data_set)
-}
+knitr::opts_chunk$set(echo = TRUE, dpi = 300)
 ```
 
 ## UCPD
@@ -55,12 +44,12 @@ incident_desc_stats$POSIXct %>% kable()
 ```
 
 #### Visualizations
-```{r inc-viz, fig.height=10, fig.width=8}
+```{r inc-viz-maps, fig.height=10, fig.width=8, message=FALSE, warning=FALSE}
 chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.720873, right = -87.522685, top = 41.895756), maptype = "toner-background", zoom = 13))
 
 hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864), maptype = "toner-background", zoom = 15))
 
-incident_data_analysis = incident_data  %>% filter(!is.na(incident))  %>% collapse_to_other(9, incident) 
+incident_data_analysis = incident_data  %>% filter(!is.na(incident))  %>% mutate(incident = collapse_to_other(incident, 9))
 
 chi_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat), color = color_pal(3, "cool")[3], alpha = 0.4) + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 
@@ -72,22 +61,36 @@ hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, 
 
 hyde_park_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat, color = incident)) + scale_color_manual(values = color_pal(9, "discrete")) + facet_wrap(~ incident) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 
+hyde_park_map + stat_density2d(data = incident_data_analysis, aes(x = lon, y = lat, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ incident) + labs(title = "Top 9 Categories of Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+
 hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + scale_color_manual(values = color_pal(4, "discrete")) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 
 hyde_park_map + geom_point(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, color = disposition)) + scale_color_manual(values = color_pal(4, "discrete")) + facet_wrap(~ disposition) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+
+hyde_park_map + stat_density2d(data = incident_data_analysis %>% filter(disposition %in% c("Arrest", "Closed", "CPD Involved", "Open")), aes(x = lon, y = lat, fill = stat(level)),  geom="polygon", alpha = 0.75) + scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ disposition) + labs(title = "Top 4 Categories of Incident Dispositions in UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+```{r inc-viz-other, fig.height=6, fig.width=9, message=FALSE, warning=FALSE}
+incident_data %>% filter(!is.na(incident)) %>% count(incident, sort = TRUE) %>%  ggplot(aes(area = n, fill = incident, label = incident)) + geom_treemap() + geom_treemap_text(grow = TRUE, reflow = TRUE, color = "white", family = "Pragati Narrow") + scale_fill_manual(values = color_pal(5, type = "continuous", levels = length(unique(incident_data$incident)))) + labs(title = "Categories of Incidents in UCPD Reports", subtitle = "From July 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
 ```
 
 
 ## CPD
 ```{r load_cpd}
-cpd_crime_data = readRDS(here("Data", "cleaned_crime_data.rds"))
+cpd_crime_data = readRDS(here("Data", "cleaned_crime_data.rds")) %>% mutate(primary_type = factor(primary_type), location_description = factor(location_description))
 ```
 
 ### Crime Reports
 
 #### Descriptive Statistics
 ```{r crime-descr-stats}
+cpd_stats = cpd_crime_data %>% skim() %>% partition()
 
+cpd_stats$character %>% kable()
+cpd_stats$factor %>% kable()
+cpd_stats$logical %>% kable()
+cpd_stats$numeric %>% kable()
+cpd_stats$POSIXct %>% kable()
 ```
 
 
@@ -96,5 +99,13 @@ cpd_crime_data = readRDS(here("Data", "cleaned_crime_data.rds"))
 chi_map + geom_point(data = cpd_crime_data, aes(x = longitude, y = latitude), color = color_pal(3, "cool")[3], alpha = 0.4) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 
 chi_map + stat_density2d(data = cpd_crime_data, aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+
+hyde_park_map + stat_density2d(data = cpd_crime_data, aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019, surrounding Hyde Park") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+
+hyde_park_map + stat_density2d(data = mutate(cpd_crime_data, primary_type = collapse_to_other(primary_type, 9) %>% str_to_lower()), aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 9 Categories of Incidents Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+```{r crime-viz-other, fig.height=6, fig.width=9, message=FALSE, warning=FALSE}
+cpd_crime_data %>% filter(!is.na(primary_type)) %>% count(primary_type, sort = TRUE) %>%  ggplot(aes(area = n, fill = primary_type, label = str_to_lower(primary_type))) + geom_treemap() + geom_treemap_text(grow = TRUE, reflow = TRUE, color = "white", family = "Pragati Narrow") + scale_fill_manual(values = color_pal(5, type = "continuous", levels = length(unique(cpd_crime_data$primary_type)))) + labs(title = "Categories of Incidents in CPD Reports", subtitle = "From January 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
 ```
 
