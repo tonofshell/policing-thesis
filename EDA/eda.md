@@ -133,10 +133,35 @@ incident_data %>% filter(!is.na(incident)) %>% count(incident, sort = TRUE) %>% 
 
 ![](eda_files/figure-gfm/inc-viz-other-1.png)<!-- -->
 
+``` r
+top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(10, n) %>% .$incident
+
+incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(disposition = collapse_to_other(disposition, 6)) %>% count(incident, disposition) %>% crosstab_percent() %>% arrange(incident) %>% ggplot(aes(x = incident, y = percent, fill = disposition)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent_format()) + scale_fill_manual(values = color_pal(6)) + labs(title = "Dispositions of Top 10 UCPD Incidents", subtitle = "From July 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+![](eda_files/figure-gfm/inc-viz-other-2.png)<!-- -->
+
+``` r
+incident_data %>% filter(!is.na(incident), year(reported) <= Sys.Date() %>% year()) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(reported) %>% ggplot(aes(x = reported, y = n), group = 1) + geom_line(size = 2) + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+![](eda_files/figure-gfm/inc-viz-other-3.png)<!-- -->
+
+``` r
+#top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(8, n) %>% .$incident
+
+incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(incident, reported) %>% ggplot(aes(x = reported, y = n, color = incident, group = incident)) + geom_line(size = 1.5) + facet_wrap(~ incident) + scale_fill_manual(values = color_pal(8)) + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend
+```
+
+![](eda_files/figure-gfm/inc-viz-other-4.png)<!-- -->
+
 ## CPD
 
 ``` r
 cpd_crime_data = readRDS(here("Data", "cleaned_crime_data.rds")) %>% mutate(primary_type = factor(primary_type), location_description = factor(location_description))
+
+#left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864
+cpd_crime_data_hp = cpd_crime_data %>% filter(longitude < -87.566863, longitude > -87.617020, latitude > 41.773565, latitude < 41.823864)
 ```
 
 ### Crime Reports
@@ -214,23 +239,41 @@ chi_map + stat_density2d(data = cpd_crime_data, aes(x = longitude, y = latitude,
 ![](eda_files/figure-gfm/crime-viz-2.png)<!-- -->
 
 ``` r
-hyde_park_map + stat_density2d(data = cpd_crime_data, aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019, surrounding Hyde Park") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+hyde_park_map + stat_density2d(data = cpd_crime_data_hp, aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + labs(title = "All Crimes Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019, surrounding Hyde Park") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 ```
-
-    ## Warning: Removed 705228 rows containing non-finite values (stat_density2d).
 
 ![](eda_files/figure-gfm/crime-viz-3.png)<!-- -->
 
 ``` r
-hyde_park_map + stat_density2d(data = mutate(cpd_crime_data, primary_type = collapse_to_other(primary_type, 9) %>% str_to_lower()), aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 9 Categories of Incidents Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+hyde_park_map + stat_density2d(data = mutate(cpd_crime_data_hp, primary_type = collapse_to_other(primary_type, 9) %>% str_to_lower()), aes(x = longitude, y = latitude, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 9 Categories of Incidents Reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
 ```
-
-    ## Warning: Removed 705228 rows containing non-finite values (stat_density2d).
 
 ![](eda_files/figure-gfm/crime-viz-4.png)<!-- -->
 
 ``` r
-cpd_crime_data %>% filter(!is.na(primary_type)) %>% count(primary_type, sort = TRUE) %>%  ggplot(aes(area = n, fill = primary_type, label = str_to_lower(primary_type))) + geom_treemap() + geom_treemap_text(grow = TRUE, reflow = TRUE, color = "white", family = "Pragati Narrow") + scale_fill_manual(values = color_pal(5, type = "continuous", levels = length(unique(cpd_crime_data$primary_type)))) + labs(title = "Categories of Incidents in CPD Reports", subtitle = "From January 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
+cpd_crime_data %>% filter(!is.na(primary_type)) %>% count(primary_type, sort = TRUE) %>% ggplot(aes(area = n, fill = primary_type, label = str_to_lower(primary_type))) + geom_treemap() + geom_treemap_text(grow = TRUE, reflow = TRUE, color = "white", family = "Pragati Narrow") + scale_fill_manual(values = color_pal(5, type = "continuous", levels = length(unique(cpd_crime_data$primary_type)))) + labs(title = "Categories of Incidents in CPD Reports", subtitle = "From January 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
 ```
 
 ![](eda_files/figure-gfm/crime-viz-other-1.png)<!-- -->
+
+``` r
+cpd_top_categories = cpd_crime_data %>% filter(!is.na(primary_type)) %>% count(primary_type) %>% top_n(10, n) %>% .$primary_type
+
+cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_categories) %>% count(primary_type, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Top 10 CPD Incidents", subtitle = "From January 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+![](eda_files/figure-gfm/crime-viz-other-2.png)<!-- -->
+
+``` r
+cpd_crime_data %>% filter(!is.na(primary_type), year(date) <= Sys.Date() %>% year()) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(date) %>% ggplot(aes(x = date, y = n), group = 1) + geom_line(size = 2) + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+![](eda_files/figure-gfm/crime-viz-other-3.png)<!-- -->
+
+``` r
+#top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(8, n) %>% .$incident
+
+cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_categories) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(primary_type, date) %>% ggplot(aes(x = date, y = n, color = primary_type, group = primary_type)) + geom_line(size = 1.5) + facet_wrap(~ primary_type) + scale_fill_manual(values = color_pal(8)) + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend
+```
+
+![](eda_files/figure-gfm/crime-viz-other-4.png)<!-- -->
