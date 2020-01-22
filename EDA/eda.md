@@ -142,7 +142,7 @@ incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mut
 ![](eda_files/figure-gfm/inc-viz-other-2.png)<!-- -->
 
 ``` r
-incident_data %>% filter(!is.na(incident), year(reported) <= Sys.Date() %>% year()) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(reported) %>% ggplot(aes(x = reported, y = n), group = 1) + geom_line(size = 2) + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+incident_data %>% filter(!is.na(incident), year(reported) <= Sys.Date() %>% year()) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(reported) %>% ggplot(aes(x = reported, y = n), group = 1) + geom_line(size = 2) + labs(title = "Frequencies of All Incident Categories in UCPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 ```
 
 ![](eda_files/figure-gfm/inc-viz-other-3.png)<!-- -->
@@ -150,10 +150,44 @@ incident_data %>% filter(!is.na(incident), year(reported) <= Sys.Date() %>% year
 ``` r
 #top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(8, n) %>% .$incident
 
-incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(incident, reported) %>% ggplot(aes(x = reported, y = n, color = incident, group = incident)) + geom_line(size = 1.5) + facet_wrap(~ incident) + scale_fill_manual(values = color_pal(8)) + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend
+incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(incident, reported) %>% ggplot(aes(x = reported, y = n, color = incident, group = incident)) + geom_line(size = 1.5) + facet_wrap(~ incident) + scale_color_manual(values = color_pal(10)) + labs(title = "Frequencies of Top 10 Incident Categories in UCPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
 ```
 
 ![](eda_files/figure-gfm/inc-viz-other-4.png)<!-- -->
+
+``` r
+incident_data_analysis %>% filter(incident == "traffic violation") %>% mutate(reported = year(reported)) %>% count(reported) %>% arrange(reported) %>% kable(caption = "Number of Traffic Violations Reported by UCPD by Year") 
+```
+
+| reported |   n |
+| -------: | --: |
+|     2011 |  39 |
+|     2012 | 486 |
+|     2013 | 184 |
+|     2014 |   9 |
+|     2018 |   1 |
+|     2019 |   4 |
+
+Number of Traffic Violations Reported by UCPD by Year
+
+``` r
+incident_data %>% filter(is.na(incident)) %>% mutate(reported = year(reported)) %>% count(reported) %>% arrange(reported) %>% kable(caption = "Number of Uncategorized Incidents Reported by UCPD by Year") 
+```
+
+| reported |   n |
+| -------: | --: |
+|     2010 |  22 |
+|     2011 |  33 |
+|     2012 |  89 |
+|     2013 | 369 |
+|     2014 | 190 |
+|     2015 | 110 |
+|     2016 |  89 |
+|     2017 | 115 |
+|     2018 | 158 |
+|     2019 | 142 |
+
+Number of Uncategorized Incidents Reported by UCPD by Year
 
 ## CPD
 
@@ -265,7 +299,7 @@ cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_catego
 ![](eda_files/figure-gfm/crime-viz-other-2.png)<!-- -->
 
 ``` r
-cpd_crime_data %>% filter(!is.na(primary_type), year(date) <= Sys.Date() %>% year()) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(date) %>% ggplot(aes(x = date, y = n), group = 1) + geom_line(size = 2) + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+cpd_crime_data %>% filter(!is.na(primary_type), year(date) <= Sys.Date() %>% year()) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(date) %>% ggplot(aes(x = date, y = n), group = 1) + geom_line(size = 2) + labs(title = "Frequencies of All Incident Categories in CPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 ```
 
 ![](eda_files/figure-gfm/crime-viz-other-3.png)<!-- -->
@@ -273,7 +307,7 @@ cpd_crime_data %>% filter(!is.na(primary_type), year(date) <= Sys.Date() %>% yea
 ``` r
 #top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(8, n) %>% .$incident
 
-cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_categories) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(primary_type, date) %>% ggplot(aes(x = date, y = n, color = primary_type, group = primary_type)) + geom_line(size = 1.5) + facet_wrap(~ primary_type) + scale_fill_manual(values = color_pal(8)) + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend
+cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_categories) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(primary_type, date) %>% ggplot(aes(x = date, y = n, color = primary_type, group = primary_type)) + geom_line(size = 1.5) + facet_wrap(~ primary_type) + scale_color_manual(values = color_pal(10)) + labs(title = "Frequencies of Top 10 Incident Categories in CPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend
 ```
 
 ![](eda_files/figure-gfm/crime-viz-other-4.png)<!-- -->
