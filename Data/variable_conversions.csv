@@ -1,0 +1,49 @@
+ucpd_cat,cpd_cat,new_cat
+,concealed carry license violation,weapons violation
+weapon violation,,weapons violation
+,crim sexual assault,sex crime
+,sex offense,sex crime
+,public indecency,sex crime
+,prostitution,sex crime
+indecent exposure,,sex crime
+,criminal damage,damage
+damage to property,,damage
+damage to vehicle,,damage
+driving under the influence,,liquor law violation
+,criminal trespass,trespassing
+domestic disturbance,,public peace violation
+disturbance,,public peace violation
+reckless conduct,,public peace violation
+noise complaint,,public peace violation
+disorderly conduct,,public peace violation
+home invasion,,burglary
+vehicle hijacking,,robbery
+vehicular hijacking,,robbery
+found narcotics,,narcotics
+possession of cannabis,,narcotics
+possession of narcotics,,narcotics
+found suspect narcotics,,narcotics
+possession of controlled substance,,narcotics
+drug law violation,,narcotics
+found property narcotics,,narcotics
+expired license narcotics,,narcotics
+found suspect marijuana,,narcotics
+found suspect narcotic,,narcotics
+possession of a controlled substance,,narcotics
+possession of controlled substances,,narcotics
+possession of crack cocaine,,narcotics
+possession of marijuana,,narcotics
+possession of narcotics with intent to deliver,,narcotics
+suspect narcotics found,,narcotics
+,other narcotic violation,narcotics
+found narcotics paraphernalia,,narcotics
+stalking,stalking,harassment
+,intimidation,harassment
+,,harassment
+threat,,harassment
+,motor vehicle theft,theft
+interfering obstructing police,,interference with public officer
+obstructing a peace officer,,interference with public officer
+obstructing peace officer,,interference with public officer
+interference with police officer,,interference with public officer
+other offense,,other
