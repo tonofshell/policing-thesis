@@ -8,6 +8,7 @@ library(here)
 library(jsonlite)
 library(ggmap)
 library(RSocrata)
+library(sf)
 
 source(here("api_keys.R"))
 
@@ -287,6 +288,9 @@ saveRDS(cpd_crime_data, here("Data", "cleaned_crime_data.rds"))
 
 ### MERGING DATA ###
 
+cpd_crime_data = readRDS(here("Data", "cleaned_crime_data.rds"))
+incident_data = readRDS(here("Data", "cleaned_incident_data.rds"))
+
 "%not_in%" = function(x, table) match(x, table, nomatch = 0) == 0
 
 new_categories = read_csv(here("Data", "variable_conversions.csv")) %>% mutate_all(str_squish)
@@ -336,7 +340,7 @@ collapse_var = function(x, cats_to_keep, collapsed_name = "other") {
 
 merged_crime_data = bind_rows(ucpd_prep_crime_data, cpd_prep_crime_data) %>% mutate(primary_type = collapse_var(primary_type, common_vars))
 
-## Merging with census data
+## Merging with census data and UCPD patrol area
 
 fix_nans = function(x) {
   x[is.nan(x)] = 0
@@ -344,9 +348,10 @@ fix_nans = function(x) {
 }
 
 census_data = readRDS(here("Data", "dec_blocks_2010_prop.rds"))
-merged_sf = merged_crime_data %>% filter(!is.na(lat), !is.na(lon)) %>% st_as_sf(coords = c("lon", "lat")) 
+ucpd_patrol_area = st_read(here("Data", "UCPD Patrol Area.kml")) %>% st_transform(st_crs(census_data))
+merged_sf = merged_crime_data %>% filter(!is.na(lat), !is.na(lon)) %>% st_as_sf(coords = c("lon", "lat"))
 st_crs(merged_sf) = st_crs(census_data)
-merged_final = merged_sf %>% st_join(census_data, join = st_within) %>% select(-c("NAME")) %>% rename("block_id" = GEOID) %>% mutate_if(is.character, factor) %>% st_drop_geometry() %>% mutate_if(is.numeric, fix_nans) %>% na.omit()
+merged_final = merged_sf %>% mutate(in_upcd_bound = st_within(geometry, ucpd_patrol_area$geometry) %>% as.numeric() %>% (function(x) !is.na(x))) %>% st_join(census_data, join = st_within) %>% select(-c("NAME")) %>% bind_cols(merged_sf %>% st_coordinates() %>% as_tibble()) %>% rename("block_id" = GEOID, "lat_y" = Y, "lon_x" = X) %>% mutate_if(is.character, factor) %>% st_drop_geometry() %>% mutate_if(is.numeric, fix_nans) %>% na.omit()
 
 write_csv(merged_final, here("Data", "merged_crime_data_final.csv"))
 saveRDS(merged_final, here("Data", "merged_crime_data_final.rds"))
