@@ -18,6 +18,7 @@ library(scales)
 library(lubridate)
 library(here)
 
+
 windowsFonts(`Pragati Narrow` = windowsFont("Pragati Narrow"))
 
 #source("../../../theme.R")
@@ -46,11 +47,13 @@ incident_desc_stats$POSIXct %>% kable()
 ```
 
 #### Visualizations
-```{r inc-viz-maps, fig.height=10, fig.width=8, message=FALSE, warning=FALSE}
+```{r base-maps, fig.height=10, fig.width=8, message=FALSE, warning=FALSE, cache=TRUE}
 chi_map = ggmap(get_stamenmap(c(left = -87.686839, bottom = 41.720873, right = -87.522685, top = 41.895756), maptype = "toner-background", zoom = 13))
 
 hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864), maptype = "toner-background", zoom = 15))
+```
 
+```{r inc-viz-maps, fig.height=10, fig.width=8, message=FALSE, warning=FALSE}
 incident_data_analysis = incident_data  %>% filter(!is.na(incident))  %>% mutate(incident = collapse_to_other(incident, 9))
 
 chi_map + geom_point(data = incident_data_analysis, aes(x = lon, y = lat), color = color_pal(3, "cool")[3], alpha = 0.4) + labs(title = "All Incidents Reported to UCPD", subtitle = "From July 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18)
@@ -79,15 +82,19 @@ top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) 
 
 incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(disposition = collapse_to_other(disposition, 6)) %>% count(incident, disposition) %>% crosstab_percent() %>% arrange(incident) %>% ggplot(aes(x = incident, y = percent, fill = disposition)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent_format()) + scale_fill_manual(values = color_pal(6)) + labs(title = "Dispositions of Top 10 UCPD Incidents", subtitle = "From July 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 
-incident_data %>% filter(!is.na(incident), year(reported) <= Sys.Date() %>% year()) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(reported) %>% ggplot(aes(x = reported, y = n), group = 1) + geom_line(size = 2) + labs(title = "Frequencies of All Incident Categories in UCPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+incident_data %>% filter(!is.na(incident), year(start) <= Sys.Date() %>% year()) %>% mutate(start = round_date(start, "month") %>% date()) %>% count(start) %>% ggplot(aes(x = start, y = n), group = 1) + geom_line(size = 2) + labs(title = "Frequencies of All Incident Categories in UCPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 
 #top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(8, n) %>% .$incident
 
-incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(reported = round_date(reported, "month") %>% date()) %>% count(incident, reported) %>% ggplot(aes(x = reported, y = n, color = incident, group = incident)) + geom_line(size = 1.5) + facet_wrap(~ incident) + scale_color_manual(values = color_pal(10)) + labs(title = "Frequencies of Top 10 Incident Categories in UCPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
+incident_data %>% filter(!is.na(incident), incident %in% top_categories) %>% mutate(start = round_date(start, "month") %>% date()) %>% count(incident, start) %>% ggplot(aes(x = start, y = n, color = incident, group = incident)) + geom_line(size = 1.5) + facet_wrap(~ incident) + scale_color_manual(values = color_pal(10)) + labs(title = "Frequencies of Top 10 Incident Categories in UCPD by Month", subtitle = "From July 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend 
 
-incident_data_analysis %>% filter(incident == "traffic violation") %>% mutate(reported = year(reported)) %>% count(reported) %>% arrange(reported) %>% kable(caption = "Number of Traffic Violations Reported by UCPD by Year") 
+incident_data %>% filter(!is.na(start)) %>% mutate(day = wday(start) %>% factor(levels = 1:7, labels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")), hour = hour(start)) %>% count(day, hour) %>% ggplot(aes(x = hour, y = day)) + geom_raster(aes(fill=n)) + scale_fill_gradientn(colors = color_pal(5, "continuous")) + theme_day(base_family = "Pragati Narrow", base_size = 18) + labs(title = "Frequencies of UCPD Incident Reports by Time", subtitle = "From July 1, 2010 to December 2, 2019", y = "Day of Week", x = "Time of Day", fill = "Number of \nReported Incidents")
 
-incident_data %>% filter(is.na(incident)) %>% mutate(reported = year(reported)) %>% count(reported) %>% arrange(reported) %>% kable(caption = "Number of Uncategorized Incidents Reported by UCPD by Year") 
+incident_data_analysis %>% filter(incident == "traffic violation") %>% mutate(start = year(start)) %>% count(start) %>% arrange(start) %>% kable(caption = "Number of Traffic Violations Reported by UCPD by Year") 
+
+incident_data %>% filter(is.na(start)) %>% mutate(reported = year(start)) %>% count(start) %>% arrange(start) %>% kable(caption = "Number of Uncategorized Incidents Reported by UCPD by Year") 
+
+incident_data %>% filter(is.na(start))
 ```
 
 
@@ -131,10 +138,54 @@ cpd_top_categories = cpd_crime_data %>% filter(!is.na(primary_type)) %>% count(p
 
 cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_categories) %>% count(primary_type, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Top 10 CPD Incidents", subtitle = "From January 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 
-cpd_crime_data %>% filter(!is.na(primary_type), year(date) <= Sys.Date() %>% year()) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(date) %>% ggplot(aes(x = date, y = n), group = 1) + geom_line(size = 2) + labs(title = "Frequencies of All Incident Categories in CPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+cpd_crime_data %>% filter(!is.na(primary_type), year(date) <= Sys.Date() %>% year()) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(date) %>% ggplot(aes(x = date, y = n), group = 1) + geom_line(size = 2) + labs(title = "Frequencies of All Incident Categories in CPD by Month", subtitle = "From January 1, 2010 to December 2, 2019") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 
 #top_categories = incident_data %>% filter(!is.na(incident)) %>% count(incident) %>% top_n(8, n) %>% .$incident
 
 cpd_crime_data %>% filter(!is.na(primary_type), primary_type %in% cpd_top_categories) %>% mutate(date = round_date(date, "month") %>% date()) %>% count(primary_type, date) %>% ggplot(aes(x = date, y = n, color = primary_type, group = primary_type)) + geom_line(size = 1.5) + facet_wrap(~ primary_type) + scale_color_manual(values = color_pal(10)) + labs(title = "Frequencies of Top 10 Incident Categories in CPD by Month") + theme_day(base_family = "Pragati Narrow", base_size = 18) + hide_legend
+
+cpd_crime_data %>% filter(!is.na(date)) %>% mutate(day = wday(date) %>% factor(levels = 1:7, labels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")), hour = hour(date)) %>% count(day, hour) %>% ggplot(aes(x = hour, y = day)) + geom_raster(aes(fill=n)) + scale_fill_gradientn(colors = color_pal(5, "continuous")) + theme_day(base_family = "Pragati Narrow", base_size = 18) + labs(title = "Frequencies of CPD Crime Reports by Time", subtitle = "From January 1, 2010 to December 2, 2019", y = "Day of Week", x = "Time of Day", fill = "Number of \nReported Crimes")
+
+cpd_crime_data_hp %>% filter(!is.na(date)) %>% mutate(day = wday(date) %>% factor(levels = 1:7, labels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")), hour = hour(date)) %>% count(day, hour) %>% ggplot(aes(x = hour, y = day)) + geom_raster(aes(fill=n)) + scale_fill_gradientn(colors = color_pal(5, "continuous")) + theme_day(base_family = "Pragati Narrow", base_size = 18) + labs(title = "Frequencies of CPD Crime Reports by Time", subtitle = "Surrounding Hyde Park, from January 1, 2010 to December 2, 2019", y = "Day of Week", x = "Time of Day", fill = "Number of \nReported Crimes")
 ```
 
+### Comparing Categories Between Datasets
+```{r comp-cats}
+cat_comp = incident_data %>% count(incident, sort = TRUE) %>% .[1:33,] %>% bind_cols(cpd_crime_data %>% count(primary_type, sort = TRUE)) %>% mutate(primary_type = str_to_lower(primary_type))
+```
+
+## Merged and Cleaned Data
+```{r load-merged}
+merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds"))
+```
+
+```{r merged-viz, fig.height=7, fig.width=9}
+merged_crime_data %>% count(primary_type, responding_dept) %>% na.omit() %>% crosstab_percent(vars = c("responding_dept")) %>% ggplot(aes(x = responding_dept, color = primary_type, fill =  primary_type, y = percent)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent) + scale_fill_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + scale_color_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + labs(title = "Categories of Crimes by Department", x = "Responding Department", y = "Percent", color = "Crime\nCategory", fill = "Crime\nCategory") + theme_night(base_family = "Pragati Narrow", base_size = 18)
+
+merged_crime_data %>% count(primary_type, responding_dept, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Incidents", x = "Crime Category", y = "Percent", fill = "Arrest Made") + theme_night(base_family = "Pragati Narrow", base_size = 18)  
+
+merged_crime_data %>% count(primary_type, responding_dept, armed) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = armed)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Incidents", x = "Crime Category", y = "Percent", fill = "Armed") + theme_night(base_family = "Pragati Narrow", base_size = 18)
+
+merged_crime_data %>% count(primary_type, responding_dept, domestic) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = domestic)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Incidents", x = "Crime Category", y = "Percent", fill = "Armed") + theme_night(base_family = "Pragati Narrow", base_size = 18)
+
+merged_crime_data %>% count(primary_type, responding_dept, attempted) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = attempted)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Incidents", x = "Crime Category", y = "Percent", fill = "Armed") + theme_night(base_family = "Pragati Narrow", base_size = 18)
+
+merged_crime_data %>% count(primary_type, responding_dept, aggravated) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = aggravated)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Incidents", x = "Crime Category", y = "Percent", fill = "Armed") + theme_night(base_family = "Pragati Narrow", base_size = 18)
+
+hyde_park_map + stat_density2d(data = merged_crime_data, aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ responding_dept) + labs(title = "Incidents by Responding Department", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18, dark_theme = TRUE)
+```
+
+```{r merged-maps, fig.height=10, fig.width=8}
+top_categories = merged_crime_data %>% count(primary_type) %>% top_n(12, n)
+hyde_park_map + stat_density2d(data = filter(merged_crime_data, primary_type %in% top_categories$primary_type), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 12 Categories of All Incidents", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18, dark_theme = TRUE)
+hyde_park_map + stat_density2d(data = filter(merged_crime_data, primary_type %in% top_categories$primary_type, responding_dept == "cpd"), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 12 Categories of Incidents reported to CPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18, dark_theme = TRUE)
+hyde_park_map + stat_density2d(data = filter(merged_crime_data, primary_type %in% top_categories$primary_type, responding_dept == "ucpd"), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 12 Categories of Incidents reported to UCPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18, dark_theme = TRUE)
+hyde_park_map + stat_density2d(data = filter(merged_crime_data, primary_type %in% top_categories$primary_type, responding_dept == "both"), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ primary_type) + labs(title = "Top 12 Categories of Incidents reported to Both CPD and UCPD", subtitle = "From January 1, 2010 to December 2, 2019") + theme_map(base_family = "Pragati Narrow", base_size = 18, dark_theme = TRUE)
+```
+
+### Census Data
+```{r census-maps, eval=FALSE, include=FALSE}
+census_data = readRDS(here("Data", "dec_blocks_2010_prop.rds"))
+
+hyde_park_map + geom_sf(data = census_data, aes(fill = GEOID, color = GEOID), alpha = 0.3, inherit.aes = FALSE) + scale_fill_gradientn(colors = color_pal(5, "heatmap")) + scale_color_gradientn(colors = color_pal(5, "heatmap")) + theme_map(base_family = "Pragati Narrow", base_size = 18, dark_theme = TRUE)
+```
