@@ -1,0 +1,41 @@
+var,1
+(Intercept),144.792
+responding_deptcpd,0.019
+date,-0
+primary_typeassault,0.215
+primary_typebattery,0.602
+primary_typeburglary,-0.768
+primary_typedamage,-0.919
+primary_typedeceptive practice,-0.693
+primary_typeharassment,-0.363
+primary_typehomicide,1.582
+primary_typeinterference with public officer,3.59
+primary_typeliquor law violation,0.133
+primary_typenarcotics,4.638
+primary_typepublic peace violation,2.099
+primary_typerobbery,-0.127
+primary_typesex crime,0.096
+primary_typetheft,-0.363
+primary_typetrespassing,2.233
+primary_typeweapons violation,2.846
+armedTRUE,-0.296
+aggravatedTRUE,0.298
+time,0.004
+monthmar,0.088
+monthsep,0.001
+monthnov,-0.002
+hu_occupied,-0.381
+hu_owned,-0.786
+hu_owned_loan,-0.186
+total_pop,-0.001
+pop_asian,-1.496
+pop_family_hh,0.757
+pop_husb_wife_fam,2.075
+pop_latino_black,-0.345
+pop_latino_other_race,0.788
+pop_latino_white,-0.86
+pop_male,-0.072
+pop_one_pers_hh,-0.064
+pop_other_race,1.079
+pop_two_plus_races,-1.497
+lat_y,-3.466
