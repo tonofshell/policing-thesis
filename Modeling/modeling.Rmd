@@ -12,15 +12,16 @@ library(glmnet)
 library(knitr)
 library(caret)
 library(pROC)
+library(boot)
 
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE, error=TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE, error=TRUE, knitr.table.format = "latex")
 
 set.seed(60615)
 merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds"))
 ```
 
 ## Data Preparation
-```{r}
+```{r data-prep}
 analysis_data = merged_crime_data %>% select(-c(id, case_number, description, block_id, location_description, reporting_dept)) %>% filter(in_ucpd_bound) %>% select(-in_ucpd_bound) %>% na.omit()
 
 analysis_data %>% count(responding_dept) %>% kable()
@@ -32,6 +33,8 @@ partition_data = function(data_set, y, p = 0.75, ...) {
 
 arrest_data = analysis_data %>% partition_data("arrest")
 dept_data = analysis_data %>% partition_data("responding_dept")
+ucpd_data = analysis_data %>% filter(responding_dept != "both") %>% mutate(responding_dept = responding_dept == "ucpd") %>% rename("ucpd_respond" = "responding_dept") %>% partition_data("ucpd_respond")
+both_alone_data = analysis_data %>% mutate(responding_dept = responding_dept == "both") %>% rename("both_respond" = "responding_dept") %>% partition_data("both_respond")
 
 ```
 
@@ -40,7 +43,14 @@ dept_data = analysis_data %>% partition_data("responding_dept")
 ## Lasso Regression
 
 ```{r lasso-prep}
-glmnet_coefs_table = . %>% coef(s = .$lambda.1se) %>% as.matrix() %>% as_tibble(rownames = "var") %>% filter(`1` != 0) %>% mutate(`1` = round(`1`, 3))
+glmnet_coefs_table = . %>% coef(s = .$lambda.1se) %>% as.matrix() %>% as_tibble(rownames = "var") %>% filter(`1` != 0) %>% mutate(`1` = round(`1`, 3)) %>% rename("Variable" = "var", "Est." = "1")
+
+build_lasso_logit = function(part_data, dep_var) {
+  mod_form = as.formula(paste(dep_var, "~", "."))
+  lasso_mod = part_data$training %>% {model.matrix(mod_form, .)} %>% cv.glmnet(unlist(part_data$training[dep_var]), alpha = 1, type.measure = "auc", family = "binomial")
+  lasso_test_roc = predict(lasso_mod, part_data$testing %>% {model.matrix(mod_form, .)}, type = "class") %>% as.logical() %>% as.numeric() %>%  roc(part_data$testing[dep_var] %>% unlist() %>% as.numeric())
+  list("model" = lasso_mod, "coefs" = glmnet_coefs_table(lasso_mod), "roc" = lasso_test_roc)
+}
 
 mn_glmnet_coefs_table = function(obj) {
   coefs = coef(obj)
@@ -55,33 +65,57 @@ mn_glmnet_coefs_table = function(obj) {
 }
 ```
 
+### Arrests
 ```{r lasso-arrests}
-lasso_arrests_mod = arrest_data$training %>% {model.matrix(arrest ~ ., .)} %>% cv.glmnet(arrest_data$training$arrest, alpha = 1, type.measure = "auc", family = "binomial")
-arrests_results = glmnet_coefs_table(lasso_arrests_mod)
-arrests_results %>% write_csv(here("Modeling", "arrests_results.csv"))
-plot(lasso_arrests_mod)
-arrests_results %>% kable()
-
-arrests_roc = roc(predict(lasso_arrests_mod, arrest_data$testing %>% {model.matrix(arrest ~ ., .)}, type = "response") %>% (function(x) x >0.5) %>% as.numeric(), arrest_data$testing$arrest %>% as.numeric())
-
-plot(arrests_roc)
-auc(arrests_roc)
+lasso_arrests_mod = build_lasso_logit(arrest_data, "arrest")
+lasso_arrests_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Arrest Model")
+plot(lasso_arrests_mod$model)
+plot(lasso_arrests_mod$roc)
+auc(lasso_arrests_mod$roc)
+saveRDS(lasso_arrests_mod, here("Modeling", "lasso_arrests_results.rds"))
 ```
+### Responding Department
 
-```{r lasso-dept}
+#### Multinomial
+```{r lasso-dept-old}
 lasso_dept_mod = dept_data$training %>% {model.matrix(responding_dept ~ ., .)} %>% cv.glmnet(dept_data$training$responding_dept, alpha = 1, type.measure = "class", family = "multinomial")
 plot(lasso_dept_mod)
 dept_results = mn_glmnet_coefs_table(lasso_dept_mod) %>% filter(!((both == "") & (ucpd == "") & (cpd == "")))
 dept_results %>% kable()
-dept_results %>% write_csv(here("Modeling", "dept_results.csv"))
+dept_results %>% write_csv(here("Modeling", "dept_results_old.csv"))
 
 class_comp = tibble(actual = dept_data$testing$responding_dept, predict = predict(lasso_dept_mod, dept_data$testing %>% {model.matrix(responding_dept ~ ., .)}, type = "class")) %>% mutate(correct = predict == actual) %>% count(actual, correct) %>% kable()
 accuracy = tibble(actual = dept_data$testing$responding_dept, predict = predict(lasso_dept_mod, dept_data$testing %>% {model.matrix(responding_dept ~ ., .)}, type = "class")) %>% mutate(correct = predict == actual) %>% select(correct) %>% unlist() %>% mean()
 ```
 
-## RandomForest
-```{r rf-arrests}
-
+#### UCPD vs CPD
+```{r lasso-ucpd}
+lasso_ucpd_mod = build_lasso_logit(ucpd_data, "ucpd_respond")
+lasso_ucpd_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "UCPD Model")
+plot(lasso_ucpd_mod$model)
+plot(lasso_ucpd_mod$roc)
+auc(lasso_ucpd_mod$roc)
+saveRDS(lasso_ucpd_mod, here("Modeling", "lasso_ucpd_results.rds"))
 ```
 
+#### Both vs Alone
+```{r lasso-both}
+lasso_both_mod = build_lasso_logit(both_alone_data, "both_respond")
+lasso_both_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Both Model")
+plot(lasso_both_mod$model)
+plot(lasso_both_mod$roc)
+auc(lasso_both_mod$roc)
+saveRDS(lasso_both_mod, here("Modeling", "lasso_both_results.rds"))
+```
+
+
+## RandomForest
+
+### Arrests
+```{r rf-arrests}
+```
+
+### Responding Department
+```{r rf-dept}
+```
 
