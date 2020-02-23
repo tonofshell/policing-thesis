@@ -1,0 +1,178 @@
+---
+title: "Preliminary Results"
+author: "Adam Shelton"
+date: "2/21/2020"
+header-includes:
+    - \usepackage{setspace}\doublespacing
+output: pdf_document
+bibliography: results_sources.bib
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(skimr)
+library(glmnet)
+library(knitr)
+library(caret)
+library(pROC)
+library(cowpoke) # devtools::install_git("tonofshell/cowpoke")
+library(skimr)
+library(ggmap)
+library(sf)
+library(beachball) # devtools::install_git("tonofshell/beachball")
+library(extrafont)
+library(treemapify)
+library(scales)
+library(lubridate)
+library(here)
+library(Cairo)
+
+
+windowsFonts(`Pragati Narrow` = windowsFont("Pragati Narrow"))
+
+knitr::opts_chunk$set(cache = TRUE, dpi = 300, echo=FALSE, message=FALSE, warning=FALSE, dev = "cairo_pdf")
+
+set.seed(60615)
+merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds"))
+```
+
+## Introduction
+
+While the University of Chicago Police Department (UCPD) provides significant technical and human resources to police Hyde Park and the surrounding area, their jurisdiction is shared with the Chicago Police Department (CPD). This necessitates an understanding, not only of how the UCPD operates, but also of the CPD and the interaction of private police officers employed by the University with public police officers employed by the city. Therefore, in addition to understanding the reports of crimes that both UCPD and CPD receives and responds to, and their outcomes, this project aims to answer how CPD and UCPD crime reports and outcomes vary within the UCPD's jurisdiction, and directly outside of it. Additionally, as some reports of crimes are handled by both the UCPD and CPD in tandem, we also attempt to discern departmental differences from how each agency may handle or report the same "case" in a different manner. 
+
+This project combines data from three sources, the University of Chicago, the Chicago Police Department, and the United States Census Bureau. The University of Chicago publishes data on incidents responded to by the University of Chicago Police Department on the website for the university's department of Safety and Security. While this data is publicly view-able, the university does not provide an option to download the data in an easy to analyze format, so the data was web-scraped using the `rvest` package in R. Data on reported incidents published by the university and the city include time, location, descriptions, and outcomes of crimes reported to both agencies. However, as neither agencies publish demographic data of suspects or victims involved with a reported crime, this is inferred from the characteristics of the census block where the crime was reported to have happened. The University of Chicago publishes the UCPD's "area of patrol" via a PDF map online. This was copied by hand into a shape-file via Google Maps, to geocode whether a crime was reported to have happened in the area the UCPD regularly patrols.
+
+Data from the University of Chicago included incidents that the UCPD responded to that were not possible crimes, such as medical emergencies, which were removed from the data-set used for analysis. However incidents that could be related to a crime, such as "missing property" or "information [related to a possible crime]" were kept in the data-set for analysis. Categories were hand coded and collapsed into as few matching categories between data from the University and the city as much as possible, with any categories that only appeared in the data from one department re-categorized as "other".
+
+## Visual Analysis
+
+Especially in the case of geo-temporal data, such as crime reports, a visual analysis is an essential tool to study the data. Finding relationships and patterns in a data-frame of numbers is a much harder task for humans compared to performing the same task with numbers and shapes [citation needed]. Therefore, we broke down several dimensions of our crime report data into much easier to understand visualizations using the `ggplot2` package in R. 
+
+```{r times, fig.height=6, fig.width=9}
+merged_crime_data %>% filter(!is.na(date)) %>% 
+  mutate(day = factor(day_of_week, levels = c("sun", "mon", "tue", "wed", "thu", "fri", "sat"), labels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")), hour = hour(date), reporting_dept = factor(reporting_dept, c("cpd", "ucpd"), c("CPD", "UCPD"))) %>% 
+  filter(in_ucpd_bound) %>% 
+  count(day, hour, reporting_dept) %>% ggplot(aes(x = hour, y = day)) + 
+  geom_raster(aes(fill=n)) + 
+  scale_fill_gradientn(colors = color_pal(5, "continuous"), trans = "log10") + 
+  facet_wrap(~ reporting_dept, scales = "free", ncol = 1) + 
+  theme_day(base_family = "Pragati Narrow", base_size = 18) + 
+  labs(title = "Frequencies of Crime Reports by Time of Day", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", y = "Day of Week", x = "Hour of Day", fill = "Log Number of \nReported Crimes")
+```
+
+Crime frequently ebbs and flows temporally, with some relation to the natural day-night rhythms of people. Naturally overall crime are more likely to occur when more people are out and about, although certain types of crimes may contradict these patterns. For example, burglaries frequently happen at night, as the darkness and lack of people about gives cover to a criminal attempting to surpass theft prevention devices. For all crimes in UCPD's patrol area we see a distinct offset in the peak times of reported crimes, even though both departments are responding to the same exact geographical space. The lull in reported crimes for UCPD, while covering a similar interval, starts much earlier than for city police. On weekdays, this nightly lull starts around 1 AM and lasting until about 5 AM for the University, but goes from about 6 AM to 10 AM for CPD. This drop in reports is much shorter and later on the weekends for city officers, from about 10 AM to 12 PM, but only slightly later for UCPD from about 4 AM to 8 AM. 
+
+```{r freq-time, fig.height=7.75, fig.width=10.25}
+
+merged_crime_data %>% filter(!is.na(date), date <= date("2019-12-02"), year(date) >= 2010, in_ucpd_bound) %>% mutate(date = round_date(date, "month") %>% date(), reporting_dept = factor(reporting_dept, c("cpd", "ucpd"), c("CPD", "UCPD")), primary_type = collapse_to_other(primary_type, 10)) %>% count(date, reporting_dept, primary_type) %>% ggplot(aes(x = date, y = n, group = reporting_dept, color = reporting_dept)) + geom_line(size = 2) + facet_wrap(~ primary_type, scales = "free_y") + scale_color_manual(values = color_pal(2)) + labs(title = "Frequencies of Top 8 Crime Types by Month", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", color = "Department", x = "Date", y = "Number of Incidents") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+Over a larger temporal scale, crimes reported to the city show a stronger seasonal effect than those handled by the University. While most types of crimes seem to increase and decrease similarly for both departments, incidents involving narcotics or robbery appear to be more independent. While the CPD has seen a large steady decrease in narcotics related crimes, the UCPD has actually seen a slight uptick in recent years, with robberies following a similar but less divergent pattern. As expected, the University handles a much smaller volume of reported crimes across the board than CPD does in the same area.
+
+```{r cat-bd, fig.height=6.75, fig.width=9.75}
+merged_crime_data %>% filter(in_ucpd_bound, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))) %>% count(primary_type, responding_dept) %>% na.omit() %>% crosstab_percent(vars = c("responding_dept")) %>% ggplot(aes(x = responding_dept, color = primary_type, fill =  primary_type, y = percent)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent) + scale_fill_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + scale_color_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + labs(title = "Categories of Crimes by Responding Department", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", x = "Responding Department", y = "Percent", color = "Crime\nCategory", fill = "Crime\nCategory") + theme_day(base_family = "Pragati Narrow", base_size = 18)
+```
+
+Within the same area, departments proportionally respond to different types of crimes with varying frequencies. The CPD alone responds to a larger proportion of violent crimes, such as burglary, battery, and assault in contrast to University officers. The UCPD alone responds to a large proportion of thefts and "other" crimes, the latter of which is likely more an artifact of the data collection process than the incidents themselves. Interestingly, despite each department alone responding to a similar proportion of thefts and robberies, when both departments respond, it is overwhelmingly likely to be a robbery instead of a theft, in stark contrast to the reports each department receives on their own.
+
+```{r arrests-cat, fig.height=6, fig.width=9}
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% count(primary_type, responding_dept, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Crimes", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", x = "Crime Category", y = "Percent", fill = "Arrest Made") + theme_day(base_family = "Pragati Narrow", base_size = 18)  
+```
+
+Overall, both departments respond very similarly to crimes, when it comes to making an arrest. Thefts, harassment, damage to property, burglary, and deceptive practice, all have similarly low arrest rates among both departments, while interference with a public officer is very likely to end in arrest regardless of who responds. However, the UCPD appears to be much more lenient with crimes involving, substance abuse, as for both narcotics crimes and liquor law violations, the CPD has quite a high arrest rate, while University officers are much less likely to perform an arrest. However, the UCPD does have a slightly greater tendency to make an arrest for trespassing and battery than officers from the city.
+
+```{r map-gen, include=FALSE}
+hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864), maptype = "toner-background", zoom = 15))
+```
+
+
+```{r map-dept, fig.height=6, fig.width=9}
+hyde_park_map + stat_density2d(data = filter(merged_crime_data, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ responding_dept) + labs(title = "Location of Crimes by Responding Department", subtitle = "For all crimes, from January 1, 2010 to December 2, 2019", fill = "Crime Density") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+```{r crimes-cat-map, fig.height=10, fig.width=8}
+top_categories = merged_crime_data %>% filter(in_ucpd_bound) %>% count(primary_type) %>% top_n(12, n)
+hyde_park_map + stat_density2d(data = filter(merged_crime_data, in_ucpd_bound, primary_type %in% top_categories$primary_type), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap"), breaks = c(2000, 4000, 6000)) + facet_wrap(~ primary_type) + labs(title = "Top 11 Categories of All Crimes by Location", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", fill = "Crime Density") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+```
+
+As we might expect, responses involving just University officers are tightly confined to campus, while those involving city officers typically do not. However, reported crimes where both departments responded are spread evenly across the entirety of the UCPD's patrol area. Similarly most types of crime are reported to have occurred all across the UCPD's patrol area. Reports of deceptive practice occur with much higher density around "downtown" Hyde Park on the east end of 53rd street, with burglaries happening on the west end of 53rd by Washington Park. Violent crimes and narcotics offenses are commonly reported north and south of Hyde Park, concentrated along Cottage Grove Avenue. Overall, the campus seems to have much lower reported crime rates than the surrounding area, especially with reports of violent crimes. 
+
+## Modeling Process
+
+```{r lasso-data-prep}
+analysis_data = merged_crime_data %>% select(-c(id, case_number, description, block_id, location_description, reporting_dept)) %>% filter(in_ucpd_bound) %>% select(-in_ucpd_bound) %>% na.omit()
+
+analysis_data %>% count(responding_dept) %>% kable(caption = "Frequencies of Observations by Responding Department")
+analysis_data %>% count(arrest) %>% kable(caption = "Frequencies of Observations by Arrest")
+
+partition_data = function(data_set, y, p = 0.75, ...) {
+  train_indices = createDataPartition(unlist(data_set[y]), p = p, ...) %>% unlist()
+  list("training" = data_set[train_indices, ], "testing" = data_set[-train_indices, ])
+}
+
+arrest_data = analysis_data %>% partition_data("arrest")
+dept_data = analysis_data %>% partition_data("responding_dept")
+
+```
+
+Due to the large number of variables in the data-set, a modeling method with built-in feature selection was essential. Lasso regressions, and more recently, Random Forest models have proved very effective for feature selection [@Tibshirani1996; @Buhlmann2006] on top of modeling relationships in crime report data [@Kadar2018; @Chalfin2019]. Their popularity not only stems from their performance, but also their ease of use and compatibility with a wide selection of different categorical outcomes. However, there can be variance between models fit on the same data, which for significant robustness, necessitates the use of boot-strapping with lasso regression models [@AAlves2018]. Similarly, while lasso regression models perform well with feature selection, other linear-based models such as General Additive Models (GAMs) are superior for predictive performance [@Kadar2018]. For this initial analysis, only single lasso regression models were built and interpreted, but boot-strapping, Random Forests, and GAMs are all additional components planned for the final paper.
+
+The lasso models were built using the `glmnet` package in R, specifically using the `cv.glmnet` function which performs k-fold cross-validation to determine the optimal lambda value. The default value of 10 folds for cross validation were used. For binary outcomes logistic lasso regression was used, with cross-validation optimizing on the area under the receiver operator characteristic (ROC) curve, while for multiple-categorical outcomes multinomial lasso regression was used, optimizing on the miss-classification rate. Data was partitioned into a 75/25 training/testing split using the `caret` package. 
+
+## Initial Results
+
+```{r lasso-prep}
+glmnet_coefs_table = . %>% coef(s = .$lambda.1se) %>% as.matrix() %>% as_tibble(rownames = "var") %>% filter(`1` != 0) %>% mutate(`1` = round(`1`, 3))
+
+mn_glmnet_coefs_table = function(obj) {
+  coefs = coef(obj)
+  out = coefs[[1]] %>% {tibble("Variable" = .@Dimnames[[1]], `1` = rep("", length(Variable)))}
+  out$`1`[(coefs[[1]]@i)+1] = coefs[[1]]@x
+  for (i in 2:length(coefs)) {
+    out[as.character(i+1)] = rep("", nrow(out))
+    out[as.character(i+1)][(coefs[[i]]@i+1),] = coefs[[i]]@x
+  }
+  names(out) = c("Variable", names(coefs))
+  out
+}
+```
+
+### Arrests
+
+```{r lasso-arrests}
+lasso_arrests_mod = arrest_data$training %>% {model.matrix(arrest ~ ., .)} %>% cv.glmnet(arrest_data$training$arrest, alpha = 1, type.measure = "auc", family = "binomial")
+arrests_results = glmnet_coefs_table(lasso_arrests_mod)
+plot(lasso_arrests_mod)
+arrests_results %>% rename("Variable" = var, "Est." = `1`) %>% kable(caption = "Arrests Model Coefficients") %>% row_spec(0, bold = T)
+
+arrests_roc = roc(predict(lasso_arrests_mod, arrest_data$testing %>% {model.matrix(arrest ~ ., .)}, type = "response") %>% (function(x) x >0.5) %>% as.numeric(), arrest_data$testing$arrest %>% as.numeric())
+
+plot(arrests_roc)
+
+auc_val = auc(arrests_roc) %>% as.numeric()
+```
+
+This model performed very well, with an AUC of `r round(auc_val, 3)`. As expected, many of they types of crimes that had high arrest rates such as narcotics crimes and interference with a public officer result in a large increase in the log-odds of a reported incident ending in arrest. A higher proportion of people who identified as an "other race" or having a two family household (husband and wife) on the US census where the crime was reported is also associated with a large increase in the outcome. A higher proportion of people identifying as two or more races, white Latino, Asian, and owned housing units were associated with a lower log-odds of a reported crime ending in arrest.
+
+### Responding Department
+
+```{r lasso-dept}
+lasso_dept_mod = dept_data$training %>% {model.matrix(responding_dept ~ ., .)} %>% cv.glmnet(dept_data$training$responding_dept, alpha = 1, type.measure = "class", family = "multinomial")
+plot(lasso_dept_mod)
+dept_results = mn_glmnet_coefs_table(lasso_dept_mod) %>% filter(!((both == "") & (ucpd == "") & (cpd == "")))
+dept_results %>% kable(caption = "Responding Department Model Coefficients") %>% row_spec(0, bold = T)
+
+class_comp = tibble(actual = dept_data$testing$responding_dept, predict = predict(lasso_dept_mod, dept_data$testing %>% {model.matrix(responding_dept ~ ., .)}, type = "class")) %>% mutate(correct = predict == actual) %>% count(actual, correct) %>% kable(caption = "Classification Results by Outcome Category")
+accuracy = tibble(actual = dept_data$testing$responding_dept, predict = predict(lasso_dept_mod, dept_data$testing %>% {model.matrix(responding_dept ~ ., .)}, type = "class")) %>% mutate(correct = predict == actual) %>% select(correct) %>% unlist() %>% mean()
+```
+
+While this model appears to perform well by its `r round(accuracy * 100, 3)`% classification accuracy rate, this does not show the whole story. Due to the class imbalance, the model is performing well only when predicting incidents responded to by CPD, not those handled by UCPD or both departments. This necessitates a different modeling approach to obtain better prediction performance, perhaps by creating two logistic models that can be cross validated using the ROC AUC. However, while this model is ultimately inconclusive due to its poor performance, it does suggest that there are strong geographical and racial components to the department receiving and responding to a reported crime.
+
+## Discussion
+
+Despite the need to build a more diverse group of robust models for this data, with the work completed so far, distinct differences in how the University of Chicago Police Department and Chicago Police Department react and interact are already becoming more clear. The culture of the University appears to impact the policing culture of the UCPD, like the times at which they respond to reported crimes, and their leniency on crimes of substance abuse, that are common at colleges across the country. Despite operating in the same geographical space, and even receiving much of the same training [@Sherman2019], these departments clearly operate in different manners, seemingly because of the different stakeholders they represent.
+
+\newpage
+## References
