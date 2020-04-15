@@ -35,7 +35,7 @@ windowsFonts(`Pragati Narrow` = windowsFont("Pragati Narrow"))
 knitr::opts_chunk$set(cache = TRUE, dpi = 300, echo=FALSE, message=FALSE, warning=FALSE, dev = "cairo_pdf")
 
 set.seed(60615)
-merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds"))
+merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds")) %>% filter(date > ymd_hm("2010-06-30 23:59"), date < ymd("2019-12-03"))
 ```
 
 ## Introduction
@@ -59,42 +59,67 @@ merged_crime_data %>% filter(!is.na(date)) %>%
   scale_fill_gradientn(colors = color_pal(5, "continuous"), trans = "log10") + 
   facet_wrap(~ reporting_dept, scales = "free", ncol = 1) + 
   theme_day(base_family = "Pragati Narrow", base_size = 18) + 
-  labs(title = "Frequencies of Crime Reports by Time of Day", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", y = "Day of Week", x = "Hour of Day", fill = "Log Number of \nReported Crimes")
+  labs(title = "Frequencies of Crime Reports by Time of Day", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", y = "Day of Week", x = "Hour of Day", fill = "Log Number of \nReported Crimes")
 ```
 
 Crime frequently ebbs and flows temporally, with some relation to the natural day-night rhythms of people. Naturally overall crime are more likely to occur when more people are out and about, although certain types of crimes may contradict these patterns. For example, burglaries frequently happen at night, as the darkness and lack of people about gives cover to a criminal attempting to surpass theft prevention devices. For all crimes in UCPD's patrol area we see a distinct offset in the peak times of reported crimes, even though both departments are responding to the same exact geographical space. The lull in reported crimes for UCPD, while covering a similar interval, starts much earlier than for city police. On weekdays, this nightly lull starts around 1 AM and lasting until about 5 AM for the University, but goes from about 6 AM to 10 AM for CPD. This drop in reports is much shorter and later on the weekends for city officers, from about 10 AM to 12 PM, but only slightly later for UCPD from about 4 AM to 8 AM. 
 
 ```{r freq-time, fig.height=7.75, fig.width=10.25}
 
-merged_crime_data %>% filter(!is.na(date), date <= date("2019-12-02"), year(date) >= 2010, in_ucpd_bound) %>% mutate(date = round_date(date, "month") %>% date(), reporting_dept = factor(reporting_dept, c("cpd", "ucpd"), c("CPD", "UCPD")), primary_type = collapse_to_other(primary_type, 10)) %>% count(date, reporting_dept, primary_type) %>% ggplot(aes(x = date, y = n, group = reporting_dept, color = reporting_dept)) + geom_line(size = 2) + facet_wrap(~ primary_type, scales = "free_y") + scale_color_manual(values = color_pal(2)) + labs(title = "Frequencies of Top 8 Crime Types by Month", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", color = "Department", x = "Date", y = "Number of Incidents") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+merged_crime_data %>% filter(!is.na(date), date <= date("2019-12-02"), year(date) >= 2010, in_ucpd_bound) %>% mutate(date = round_date(date, "month") %>% date(), reporting_dept = factor(reporting_dept, c("cpd", "ucpd"), c("CPD", "UCPD")), primary_type = collapse_to_other(primary_type, 10)) %>% count(date, reporting_dept, primary_type) %>% ggplot(aes(x = date, y = n, group = reporting_dept, color = reporting_dept)) + geom_line(size = 2) + facet_wrap(~ primary_type, scales = "free_y") + scale_color_manual(values = color_pal(2)) + labs(title = "Frequencies of Top 8 Crime Types by Month", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", color = "Department", x = "Date", y = "Number of Incidents") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
 ```
 
 Over a larger temporal scale, crimes reported to the city show a stronger seasonal effect than those handled by the University. While most types of crimes seem to increase and decrease similarly for both departments, incidents involving narcotics or robbery appear to be more independent. While the CPD has seen a large steady decrease in narcotics related crimes, the UCPD has actually seen a slight uptick in recent years, with robberies following a similar but less divergent pattern. As expected, the University handles a much smaller volume of reported crimes across the board than CPD does in the same area.
 
 ```{r cat-bd, fig.height=6.75, fig.width=9.75}
-merged_crime_data %>% filter(in_ucpd_bound, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))) %>% count(primary_type, responding_dept) %>% na.omit() %>% crosstab_percent(vars = c("responding_dept")) %>% ggplot(aes(x = responding_dept, color = primary_type, fill =  primary_type, y = percent)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent) + scale_fill_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + scale_color_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + labs(title = "Categories of Crimes by Responding Department", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", x = "Responding Department", y = "Percent", color = "Crime\nCategory", fill = "Crime\nCategory") + theme_day(base_family = "Pragati Narrow", base_size = 18)
+merged_crime_data %>% filter(in_ucpd_bound, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))) %>% count(primary_type, responding_dept) %>% na.omit() %>% crosstab_percent(vars = c("responding_dept")) %>% ggplot(aes(x = responding_dept, color = primary_type, fill =  primary_type, y = percent)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent) + scale_fill_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + scale_color_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + labs(title = "Categories of Crimes by Responding Department", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", x = "Responding Department", y = "Percent", color = "Crime\nCategory", fill = "Crime\nCategory") + theme_day(base_family = "Pragati Narrow", base_size = 18)
 ```
 
 Within the same area, departments proportionally respond to different types of crimes with varying frequencies. The CPD alone responds to a larger proportion of violent crimes, such as burglary, battery, and assault in contrast to University officers. The UCPD alone responds to a large proportion of thefts and "other" crimes, the latter of which is likely more an artifact of the data collection process than the incidents themselves. Interestingly, despite each department alone responding to a similar proportion of thefts and robberies, when both departments respond, it is overwhelmingly likely to be a robbery instead of a theft, in stark contrast to the reports each department receives on their own.
 
 ```{r arrests-cat, fig.height=6, fig.width=9}
-merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% count(primary_type, responding_dept, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Crimes", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", x = "Crime Category", y = "Percent", fill = "Arrest Made") + theme_day(base_family = "Pragati Narrow", base_size = 18)  
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% count(primary_type, responding_dept, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Crimes", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", x = "Crime Category", y = "Percent", fill = "Arrest Made") + theme_day(base_family = "Pragati Narrow", base_size = 18)  
 ```
 
 Overall, both departments respond very similarly to crimes, when it comes to making an arrest. Thefts, harassment, damage to property, burglary, and deceptive practice, all have similarly low arrest rates among both departments, while interference with a public officer is very likely to end in arrest regardless of who responds. However, the UCPD appears to be much more lenient with crimes involving, substance abuse, as for both narcotics crimes and liquor law violations, the CPD has quite a high arrest rate, while University officers are much less likely to perform an arrest. However, the UCPD does have a slightly greater tendency to make an arrest for trespassing and battery than officers from the city.
 
 ```{r map-gen, include=FALSE}
 hyde_park_map = ggmap(get_stamenmap(c(left = -87.617020, bottom = 41.773565, right = -87.566863, top = 41.823864), maptype = "toner-background", zoom = 15))
+
+calc_density = function(x, y, ...) {
+  dens_obj = MASS::kde2d(x, y, ...)
+  dens_tib = suppressMessages(dens_obj$z %>% as_tibble(.name_repair = "unique"))
+  names(dens_tib) = dens_obj$y
+  dens_tib %>% mutate(x = dens_obj$x) %>% pivot_longer(-x, names_to = "y", values_to = "z") %>% mutate_all(as.numeric)
+}
+
+facet_density = function(x, y, facet, ...) {
+  unique_cats = unique(facet)
+  unique_cats = unique_cats[!is.na(unique_cats)]
+  out = NULL
+  for (cat in unique_cats) {
+    cat_tib = calc_density(x[facet == cat], y[facet == cat]) %>% mutate(facet = cat)
+    if (is.null(out)) {
+      out = cat_tib
+    } else {
+      out = bind_rows(out, cat_tib)
+    }
+  }
+  out
+}
+
+hp_data = merged_crime_data %>% filter(lon_x < -87.566863, lon_x > -87.617020, lat_y < 41.823864, lat_y > 41.773565, !is.na(lon_x), !is.na(lat_y), !is.na(responding_dept))
 ```
 
 
 ```{r map-dept, fig.height=6, fig.width=9}
-hyde_park_map + stat_density2d(data = filter(merged_crime_data, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap")) + facet_wrap(~ responding_dept) + labs(title = "Location of Crimes by Responding Department", subtitle = "For all crimes, from January 1, 2010 to December 2, 2019", fill = "Crime Density") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+hyde_park_map + geom_contour_filled(data = hp_data %>% {facet_density(.$lon_x, .$lat_y, .$responding_dept)} %>% mutate(facet = factor(facet, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))), aes(x = x, y = y, z = z), alpha = 0.75, breaks = seq(500, 17000, by = 1500)) + facet_wrap(~ facet) + guides(fill = guide_colorsteps(barheight = unit(6, "cm"))) +  scale_fill_manual(values = color_pal(5, "heatmap", levels = 11)) + labs(title = "Location of Crimes by Responding Department", subtitle = "For all crimes, from July 1, 2010 to December 2, 2019", fill = "Crime Density") + theme_map(base_family = "Pragati Narrow", base_size = 18) + theme(legend.position = "right")
 ```
 
 ```{r crimes-cat-map, fig.height=10, fig.width=8}
 top_categories = merged_crime_data %>% filter(in_ucpd_bound) %>% count(primary_type) %>% top_n(12, n)
-hyde_park_map + stat_density2d(data = filter(merged_crime_data, in_ucpd_bound, primary_type %in% top_categories$primary_type), aes(x = lon_x, y = lat_y, fill = stat(level)),  geom="polygon", alpha = 0.75) +  scale_fill_gradientn(colors = color_pal(5, "heatmap"), breaks = c(2000, 4000, 6000)) + facet_wrap(~ primary_type) + labs(title = "Top 11 Categories of All Crimes by Location", subtitle = "Within UCPD's patrol area, from January 1, 2010 to December 2, 2019", fill = "Crime Density") + theme_map(base_family = "Pragati Narrow", base_size = 18)
+
+hyde_park_map + geom_contour_filled(data = filter(hp_data, in_ucpd_bound, primary_type %in% top_categories$primary_type) %>% {facet_density(.$lon_x, .$lat_y, .$primary_type)}, aes(x = x, y = y, z = z), alpha = 0.75, breaks = seq(200, 6200, by = 600)) + facet_wrap(~ facet) + guides(fill = guide_colorsteps(barheight = unit(6, "cm"))) +  scale_fill_manual(values = color_pal(5, "heatmap", levels = 10)) + labs(title = "Top 11 Categories of All Crimes by Location", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", fill = "Crime Density") + theme_map(base_family = "Pragati Narrow", base_size = 18) + theme(legend.position = "right")
 ```
 
 As we might expect, responses involving just University officers are tightly confined to campus, while those involving city officers typically do not. However, reported crimes where both departments responded are spread evenly across the entirety of the UCPD's patrol area. Similarly most types of crime are reported to have occurred all across the UCPD's patrol area. Reports of deceptive practice occur with much higher density around "downtown" Hyde Park on the east end of 53rd street, with burglaries happening on the west end of 53rd by Washington Park. Violent crimes and narcotics offenses are commonly reported north and south of Hyde Park, concentrated along Cottage Grove Avenue. Overall, the campus seems to have much lower reported crime rates than the surrounding area, especially with reports of violent crimes. 
