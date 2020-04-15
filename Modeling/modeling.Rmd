@@ -7,22 +7,52 @@ output: github_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
-library(here)
 library(glmnet)
 library(knitr)
 library(caret)
 library(pROC)
-library(boot)
+library(HDCI)
+library(mgcv)
+library(tictoc)
+library(lubridate)
+library(doParallel)
+library(here)
 
-knitr::opts_chunk$set(echo = TRUE, cache=TRUE, error=TRUE, knitr.table.format = "latex")
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE, error=TRUE, fig.height = 8, fig.width = 10)
+
+setup_cl = function(seed = round(Sys.time())) {
+  require(parallel)
+  if (exists("cl")) {
+    print("Stopping existing cluster")
+    try(parallel::stopCluster(cl))
+  }
+  assign("cl", parallel::makeCluster(parallel::detectCores() * 0.5, outfile = "out.txt"), envir = globalenv())
+  RNGkind("L'Ecuyer-CMRG")
+  print(paste("Using", as.numeric(seed), "as parallel RNG seed"))
+  clusterSetRNGStream(cl, seed)
+}
+setup_cl(60615)
+registerDoParallel(cl)
 
 set.seed(60615)
-merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds"))
+
+tr_control = trainControl(method = "repeatedcv", number = 10, search = "random", classProbs = TRUE)
+
+logit_to_prob = function(x) {
+  exp(x) %>% (function(z) z / (1 + z))
+}
+
+merged_crime_data = readRDS(here("Data", "merged_crime_data_final.rds")) %>% filter(date > ymd_hm("2010-06-30 23:59"), date < ymd("2019-12-03"))
 ```
 
 ## Data Preparation
 ```{r data-prep}
-analysis_data = merged_crime_data %>% select(-c(id, case_number, description, block_id, location_description, reporting_dept)) %>% filter(in_ucpd_bound) %>% select(-in_ucpd_bound) %>% na.omit()
+cont_vars_w_low_vari = function(x, num_unique_cutoff = 10) {
+  bad_names = x %>% select_if(is.numeric) %>% summarise_all((function(x) length(unique(x)))) %>% pivot_longer(everything()) %>% arrange(value) %>% filter(value < num_unique_cutoff) %>% .$name
+  names(x) %in% bad_names
+}
+
+analysis_data = merged_crime_data %>% select(-c(id, case_number, description, block_id, location_description, reporting_dept, pop_male, pop_latino_asian, pop_latino_black, pop_latino_native, pop_latino_other_race, pop_latino_two_plus_races, pop_latino_white, pop_native, pop_other_race, pop_two_plus_races, hu_occupied)) %>% filter(in_ucpd_bound) %>% select(-in_ucpd_bound) %>% na.omit() %>% select_if(!cont_vars_w_low_vari(.))
 
 analysis_data %>% count(responding_dept) %>% kable()
 
@@ -36,20 +66,40 @@ dept_data = analysis_data %>% partition_data("responding_dept")
 ucpd_data = analysis_data %>% filter(responding_dept != "both") %>% mutate(responding_dept = responding_dept == "ucpd") %>% rename("ucpd_respond" = "responding_dept") %>% partition_data("ucpd_respond")
 both_alone_data = analysis_data %>% mutate(responding_dept = responding_dept == "both") %>% rename("both_respond" = "responding_dept") %>% partition_data("both_respond")
 
+white_data = analysis_data %>% partition_data("pop_white")
+black_data = analysis_data %>% partition_data("pop_black")
+asian_data = analysis_data %>% partition_data("pop_asian")
+latino_data = analysis_data %>% partition_data("pop_latino")
+
 ```
-
-
-
-## Lasso Regression
 
 ```{r lasso-prep}
 glmnet_coefs_table = . %>% coef(s = .$lambda.1se) %>% as.matrix() %>% as_tibble(rownames = "var") %>% filter(`1` != 0) %>% mutate(`1` = round(`1`, 3)) %>% rename("Variable" = "var", "Est." = "1")
 
-build_lasso_logit = function(part_data, dep_var) {
+#type.measure = "auc", family = "binomial"
+build_lasso = function(part_data, dep_var, ...) {
   mod_form = as.formula(paste(dep_var, "~", "."))
-  lasso_mod = part_data$training %>% {model.matrix(mod_form, .)} %>% cv.glmnet(unlist(part_data$training[dep_var]), alpha = 1, type.measure = "auc", family = "binomial")
-  lasso_test_roc = predict(lasso_mod, part_data$testing %>% {model.matrix(mod_form, .)}, type = "class") %>% as.logical() %>% as.numeric() %>%  roc(part_data$testing[dep_var] %>% unlist() %>% as.numeric())
-  list("model" = lasso_mod, "coefs" = glmnet_coefs_table(lasso_mod), "roc" = lasso_test_roc)
+  tic()
+  lasso_mod = part_data$training %>% 
+    select(-dep_var) %>% 
+    rename_if(is.factor, (function(x) paste0(x, "."))) %>% 
+    rename_if(is.logical, (function(x) paste0(x, "."))) %>% 
+    bind_cols(select(part_data$training, dep_var)) %>%
+    {model.matrix(mod_form, .)} %>% 
+    cv.glmnet(unlist(part_data$training[dep_var]), alpha = 1, ...)
+  toc()
+  lasso_test_roc = NULL
+  lasso_test_rmse = NULL
+  if (is.logical(unlist(part_data$training[dep_var]))) {
+    lasso_test_roc = predict(lasso_mod, part_data$testing %>% {model.matrix(mod_form, .)}, type = "class") %>%
+    as.logical() %>% 
+    as.numeric() %>%  
+    roc(part_data$testing[dep_var] %>% unlist() %>% as.numeric())
+  } else {
+    lasso_test_rmse = sqrt(mean((predict(lasso_mod, part_data$testing %>% {model.matrix(mod_form, .)}) - part_data$testing[dep_var] %>% unlist() %>% as.numeric())^2))
+  }
+  
+  list("model" = lasso_mod, "coefs" = glmnet_coefs_table(lasso_mod), "roc" = lasso_test_roc, "rmse" = lasso_test_rmse)
 }
 
 mn_glmnet_coefs_table = function(obj) {
@@ -63,20 +113,93 @@ mn_glmnet_coefs_table = function(obj) {
   names(out) = c("Variable", names(coefs))
   out
 }
+
+build_boot_lasso_logit = function(data_set, y_var) {
+  train_data = data_set$training %>% mutate_all(as.numeric) %>% as.matrix()
+  y_index = which(colnames(train_data) == y_var)
+  if (y_index == 0) {
+    stop("Invalid Y variable name")
+  }
+  list("model" = bootLasso(train_data[, -y_index], train_data[, y_index], type.boot = "paired", parallel = TRUE, parallel.boot = TRUE, type.measure = "auc", family = "binomial"), "y_index" = y_index, "data" = train_data)
+}
+
+boot_lasso_table = function(list_obj, filter = TRUE) {
+  obj = list_obj$model
+  data_set = list_obj$data
+  y_ind = list_obj$y_index
+  results = tibble("Variable" = colnames(data_set)[-y_ind], "Est." = obj$Beta) %>% bind_cols(obj$interval %>% t() %>% (function(x) {colnames(x) = c("Lower", "Upper");x}) %>% as_tibble()) %>% arrange(-abs(`Est.`)) 
+  if (filter) {
+    results = results %>% filter(`Est.` != 0)
+  }
+  results %>% mutate_if(is.numeric, round, digits = 3) %>% mutate("Non-zero" = !(Lower < 0 & Upper > 0))
+}
+
+make_gam_form = function(data_set, y_var) {
+  cont_names =  data_set %>% select_if(is.numeric) %>% colnames() %>% .[. != y_var]
+  cat_names = names(data_set) %>% .[!(. %in% cont_names)] %>% .[. != y_var]
+  cat_names %>% paste0(collapse = " + ") %>% {paste0(y_var, " ~ ", ., " + s(", paste0(cont_names, collapse = ") + s(") , ")")} %>% as.formula()
+}
+
+build_gam_lasso_mod = function(lasso_obj, part_data, y_var, n_vars = 10, ...) {
+  lasso_selected_vars = lasso_obj$coefs %>% arrange(-abs(`Est.`)) %>% filter(Variable != "(Intercept)") %>% .$Variable %>% str_split("\\.") %>% sapply((function(x) x[1])) %>% unique()
+  n_vars = ifelse(n_vars > length(lasso_selected_vars), length(lasso_selected_vars), n_vars)
+  tic()
+  gam_mod = part_data$training %>% select(y_var, lasso_selected_vars[1:n_vars]) %>% {gam(make_gam_form(., y_var), data= ., ...)}
+  toc()
+  test_roc = NULL
+  test_rmse = NULL
+  if (is.logical(unlist(part_data$training[y_var]))) {
+    test_roc = predict(gam_mod, part_data$testing %>% select(y_var, lasso_selected_vars[1:n_vars]), type = "response") %>% (function(x) x > 0.5) %>% 
+    as.logical() %>% 
+    as.numeric() %>% 
+    roc(part_data$testing[y_var] %>% unlist() %>% as.numeric())
+  } else {
+    test_rmse = sqrt(mean((predict(gam_mod, part_data$testing %>% select(y_var, lasso_selected_vars[1:n_vars])) - part_data$testing[y_var] %>% unlist() %>% as.numeric())^2))
+  }
+  list("model" = gam_mod, "roc" = test_roc, "rmse" = test_rmse)
+}
 ```
 
-### Arrests
+## Arrests
+
+### Logistic Lasso
 ```{r lasso-arrests}
-lasso_arrests_mod = build_lasso_logit(arrest_data, "arrest")
+lasso_arrests_mod = build_lasso(arrest_data, "arrest", type.measure = "auc", family = "binomial")
 lasso_arrests_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Arrest Model")
 plot(lasso_arrests_mod$model)
 plot(lasso_arrests_mod$roc)
 auc(lasso_arrests_mod$roc)
 saveRDS(lasso_arrests_mod, here("Modeling", "lasso_arrests_results.rds"))
 ```
-### Responding Department
 
-#### Multinomial
+```{r boot-lasso-arrests, eval=FALSE, include=FALSE}
+bl_arrests = build_boot_lasso_logit(arrest_data, "arrest")
+saveRDS(bl_arrests, here("Modeling", "bl_arrest_results.rds"))
+boot_lasso_table(bl_arrests) %>% kable()
+```
+
+### Logistic GAM
+```{r gam-arrests}
+# tic()
+# gam_arrest_mod_car = train(arrest ~ ., data = arrest_data$training %>% mutate(arrest = factor(arrest)) %>% mutate_if(is.factor, make.names), method="gam", metric = "ROC", family = binomial(), tuneLength = 1, trControl = "none")
+# toc()
+
+#method = "REML",
+
+gam_arrests_mod = build_gam_lasso_mod(lasso_arrests_mod, arrest_data, "arrest", 10, select = FALSE, family = binomial())
+saveRDS(gam_arrests_mod, here("Modeling", "gam_arrests_results.rds"))
+
+summary(gam_arrests_mod$model)
+plot.gam(gam_arrests_mod$model, pages = 1, rug = TRUE )
+
+auc(gam_arrests_mod$roc)
+plot(gam_arrests_mod$roc)
+```
+
+
+## Responding Department
+
+### Multinomial Lasso
 ```{r lasso-dept-old}
 lasso_dept_mod = dept_data$training %>% {model.matrix(responding_dept ~ ., .)} %>% cv.glmnet(dept_data$training$responding_dept, alpha = 1, type.measure = "class", family = "multinomial")
 plot(lasso_dept_mod)
@@ -88,9 +211,11 @@ class_comp = tibble(actual = dept_data$testing$responding_dept, predict = predic
 accuracy = tibble(actual = dept_data$testing$responding_dept, predict = predict(lasso_dept_mod, dept_data$testing %>% {model.matrix(responding_dept ~ ., .)}, type = "class")) %>% mutate(correct = predict == actual) %>% select(correct) %>% unlist() %>% mean()
 ```
 
-#### UCPD vs CPD
+### UCPD vs CPD
+
+#### Logistic Lasso
 ```{r lasso-ucpd}
-lasso_ucpd_mod = build_lasso_logit(ucpd_data, "ucpd_respond")
+lasso_ucpd_mod = build_lasso(ucpd_data, "ucpd_respond", type.measure = "auc", family = "binomial")
 lasso_ucpd_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "UCPD Model")
 plot(lasso_ucpd_mod$model)
 plot(lasso_ucpd_mod$roc)
@@ -98,9 +223,32 @@ auc(lasso_ucpd_mod$roc)
 saveRDS(lasso_ucpd_mod, here("Modeling", "lasso_ucpd_results.rds"))
 ```
 
-#### Both vs Alone
+```{r boot-lasso-ucpd, eval=FALSE, include=FALSE}
+bl_ucpd = build_boot_lasso_logit(ucpd_data, "ucpd_respond")
+saveRDS(bl_ucpd, here("Modeling", "bl_ucpd_results.rds"))
+boot_lasso_table(bl_ucpd) %>% kable()
+```
+
+#### Logistic GAM
+```{r gam-ucpd}
+#method = "REML",
+
+gam_ucpd_mod = build_gam_lasso_mod(lasso_ucpd_mod, ucpd_data, "ucpd_respond", 10, select = FALSE, family = binomial())
+saveRDS(gam_ucpd_mod, here("Modeling", "gam_ucpd_results.rds"))
+
+summary(gam_ucpd_mod$model)
+plot.gam(gam_ucpd_mod$model, pages = 1, rug = TRUE )
+
+auc(gam_ucpd_mod$roc)
+plot(gam_ucpd_mod$roc)
+```
+
+
+### Both vs Alone
+
+#### Logistic Lasso
 ```{r lasso-both}
-lasso_both_mod = build_lasso_logit(both_alone_data, "both_respond")
+lasso_both_mod = build_lasso(both_alone_data, "both_respond", type.measure = "auc", family = "binomial")
 lasso_both_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Both Model")
 plot(lasso_both_mod$model)
 plot(lasso_both_mod$roc)
@@ -108,14 +256,125 @@ auc(lasso_both_mod$roc)
 saveRDS(lasso_both_mod, here("Modeling", "lasso_both_results.rds"))
 ```
 
-
-## RandomForest
-
-### Arrests
-```{r rf-arrests}
+```{r boot-lasso-both, eval=FALSE, include=FALSE}
+bl_both =  build_boot_lasso_logit(both_alone_data, "both_respond")
+saveRDS(bl_both, here("Modeling", "bl_both_results.rds"))
+boot_lasso_table(bl_both) %>% kable()
 ```
 
-### Responding Department
-```{r rf-dept}
+#### Logistic GAM
+```{r gam-both}
+#method = "REML",
+
+gam_both_mod = build_gam_lasso_mod(lasso_both_mod, both_alone_data, "both_respond", 10, select = FALSE, family = binomial())
+saveRDS(gam_both_mod, here("Modeling", "gam_both_results.rds"))
+
+summary(gam_both_mod$model)
+plot.gam(gam_ucpd_mod$model, pages = 1, rug = TRUE )
+
+auc(gam_both_mod$roc)
+plot(gam_both_mod$roc)
+```
+
+## Race
+
+### White
+
+#### Lasso
+```{r lasso-white}
+lasso_white_mod = build_lasso(white_data, "pop_white")
+lasso_white_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "White Model")
+plot(lasso_white_mod$model)
+lasso_white_mod$rmse
+saveRDS(lasso_white_mod, here("Modeling", "lasso_white_results.rds"))
+```
+
+#### GAM
+```{r gam-white}
+#method = "REML",
+
+gam_white_mod = build_gam_lasso_mod(lasso_white_mod, white_data, "pop_white", 20, select = FALSE)
+saveRDS(gam_white_mod, here("Modeling", "gam_white_results.rds"))
+
+summary(gam_white_mod$model)
+plot.gam(gam_white_mod$model, pages = 1, rug = TRUE )
+
+gam_white_mod$rmse
+```
+
+### Black
+
+#### Lasso
+```{r lasso-black}
+lasso_black_mod = build_lasso(black_data, "pop_black")
+lasso_black_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Black Model")
+plot(lasso_black_mod$model)
+lasso_black_mod$rmse
+saveRDS(lasso_black_mod, here("Modeling", "lasso_black_results.rds"))
+```
+
+#### GAM
+```{r gam-black}
+#method = "REML",
+
+gam_black_mod = build_gam_lasso_mod(lasso_black_mod, black_data, "pop_black", 20, select = FALSE)
+saveRDS(gam_black_mod, here("Modeling", "gam_black_results.rds"))
+
+summary(gam_black_mod$model)
+plot.gam(gam_black_mod$model, pages = 1, rug = TRUE )
+
+gam_black_mod$rmse
+```
+
+### Asian
+
+#### Lasso
+```{r lasso-asian}
+lasso_asian_mod = build_lasso(asian_data, "pop_asian")
+lasso_asian_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Asian Model")
+plot(lasso_asian_mod$model)
+lasso_asian_mod$rmse
+saveRDS(lasso_asian_mod, here("Modeling", "lasso_asian_results.rds"))
+```
+
+#### GAM
+```{r gam-asian}
+#method = "REML",
+
+gam_asian_mod = build_gam_lasso_mod(lasso_asian_mod, asian_data, "pop_asian", 20, select = FALSE)
+saveRDS(gam_asian_mod, here("Modeling", "gam_asian_results.rds"))
+
+summary(gam_asian_mod$model)
+plot.gam(gam_asian_mod$model, pages = 1, rug = TRUE )
+
+gam_asian_mod$rmse
+```
+
+### Latino
+
+#### Lasso
+```{r lasso-latino}
+lasso_latino_mod = build_lasso(latino_data, "pop_latino")
+lasso_latino_mod$coefs %>% arrange(-abs(`Est.`)) %>% kable(caption = "Latino Model")
+plot(lasso_latino_mod$model)
+lasso_latino_mod$rmse
+saveRDS(lasso_latino_mod, here("Modeling", "lasso_latino_results.rds"))
+```
+
+#### GAM
+```{r gam-latino}
+#method = "REML",
+
+gam_latino_mod = build_gam_lasso_mod(lasso_latino_mod, latino_data, "pop_latino", 20, select = FALSE)
+saveRDS(gam_latino_mod, here("Modeling", "gam_latino_results.rds"))
+
+summary(gam_latino_mod$model)
+plot.gam(gam_latino_mod$model, pages = 1, rug = TRUE )
+
+gam_latino_mod$rmse
+```
+
+```{r}
+stopCluster(cl)
 ```
 
