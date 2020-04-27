@@ -72,7 +72,11 @@ merged_crime_data %>% filter(!is.na(date), date <= date("2019-12-02"), year(date
 Over a larger temporal scale, crimes reported to the city show a stronger seasonal effect than those handled by the University. While most types of crimes seem to increase and decrease similarly for both departments, incidents involving narcotics or robbery appear to be more independent. While the CPD has seen a large steady decrease in narcotics related crimes, the UCPD has actually seen a slight uptick in recent years, with robberies following a similar but less divergent pattern. As expected, the University handles a much smaller volume of reported crimes across the board than CPD does in the same area.
 
 ```{r cat-bd, fig.height=6.75, fig.width=9.75}
-merged_crime_data %>% filter(in_ucpd_bound, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))) %>% count(primary_type, responding_dept) %>% na.omit() %>% crosstab_percent(vars = c("responding_dept")) %>% ggplot(aes(x = responding_dept, color = primary_type, fill =  primary_type, y = percent)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent) + scale_fill_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + scale_color_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + labs(title = "Categories of Crimes by Responding Department", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", x = "Responding Department", y = "Percent", color = "Crime\nCategory", fill = "Crime\nCategory") + theme_day(base_family = "Pragati Narrow", base_size = 18)
+cat_dept_data = merged_crime_data %>% filter(in_ucpd_bound, !is.na(responding_dept)) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))) %>% count(primary_type, responding_dept) %>% na.omit() %>% crosstab_percent(vars = c("responding_dept")) 
+
+cat_dept_data %>% select(-n) %>% mutate(percent = percent(percent)) %>% pivot_wider(names_from = responding_dept, values_from = percent) %>% saveRDS((here("EDA", "cat_dept_results.rds")))
+
+cat_dept_data %>% ggplot(aes(x = responding_dept, color = primary_type, fill =  primary_type, y = percent)) + geom_col() + coord_flip() + scale_y_continuous(labels = percent) + scale_fill_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + scale_color_manual(values = color_pal(7, "discrete", levels = length(unique(merged_crime_data$primary_type)))) + labs(title = "Categories of Crimes by Responding Department", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", x = "Responding Department", y = "Percent", color = "Crime\nCategory", fill = "Crime\nCategory") + theme_day(base_family = "Pragati Narrow", base_size = 18)
 ```
 
 Within the same area, departments proportionally respond to different types of crimes with varying frequencies. The CPD alone responds to a larger proportion of violent crimes, such as burglary, battery, and assault in contrast to University officers. The UCPD alone responds to a large proportion of thefts and "other" crimes, the latter of which is likely more an artifact of the data collection process than the incidents themselves. Interestingly, despite each department alone responding to a similar proportion of thefts and robberies, when both departments respond, it is overwhelmingly likely to be a robbery instead of a theft, in stark contrast to the reports each department receives on their own.
@@ -80,6 +84,70 @@ Within the same area, departments proportionally respond to different types of c
 ```{r arrests-cat, fig.height=6, fig.width=9}
 merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% count(primary_type, responding_dept, arrest) %>% crosstab_percent() %>% arrange(primary_type) %>% ggplot(aes(x = primary_type, y = percent, fill = arrest)) + facet_wrap(~ responding_dept) + geom_col() + coord_flip() + scale_y_continuous(breaks=c(0.25, 0.75), labels = percent_format()) + scale_fill_manual(values = color_pal(2)) + labs(title = "Dispositions of Reported Crimes", subtitle = "Within UCPD's patrol area, from July 1, 2010 to December 2, 2019", x = "Crime Category", y = "Percent", fill = "Arrest Made") + theme_day(base_family = "Pragati Narrow", base_size = 18)  
 ```
+
+```{r dept-race, fig.height=6, fig.width=9}
+break_interval = 0.2
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% select(pop_asian, pop_black, pop_latino, pop_white, responding_dept) %>% rename("Asian" = pop_asian, "Black" = pop_black, "Latino" = pop_latino, "White" = pop_white) %>% pivot_longer(c(Asian, Black, Latino, White)) %>% count(responding_dept, name, value) %>% crosstab_percent() %>% ggplot(aes(x = responding_dept, y = percent, color = value, fill = value)) + geom_col() + facet_wrap(~ name) + coord_flip() + scale_color_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = percent, colors = color_pal(5, "continuous")) + scale_fill_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = percent, colors = color_pal(5, "continuous")) + scale_y_continuous(labels = percent) + labs(x = "Responding Department", y = "Percent of Reported Crimes", color = "Racial/Ethnic \nProportion of \nCensus Block", fill = "Racial/Ethnic \nProportion of \nCensus Block", subtitle = "By department within UCPD's patrol area, from July 1, 2010 to December 2, 2019", title = "Racial/Ethnic Distributions of Reported Crime Locations") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+```{r arrest-race, fig.height=6, fig.width=9}
+break_interval = 0.2
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% select(pop_asian, pop_black, pop_latino, pop_white, arrest) %>% rename("Asian" = pop_asian, "Black" = pop_black, "Latino" = pop_latino, "White" = pop_white) %>% pivot_longer(c(Asian, Black, Latino, White)) %>% count(arrest, name, value) %>% crosstab_percent() %>% ggplot(aes(x = arrest, y = percent, color = value, fill = value)) + geom_col() + facet_wrap(~ name) + coord_flip() + scale_color_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = percent, colors = color_pal(5, "continuous")) + scale_fill_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = percent, colors = color_pal(5, "continuous")) + scale_y_continuous(labels = percent) + labs(x = "Arrest Made", y = "Percent of Reported Crimes", color = "Racial/Ethnic \nProportion of \nCensus Block", fill = "Racial/Ethnic \nProportion of \nCensus Block", subtitle = "By disposition within UCPD's patrol area, from July 1, 2010 to December 2, 2019", title = "Racial/Ethnic Distributions of Reported Crime Locations") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+```{r arrest-dept-race, fig.height=6, fig.width=9}
+break_interval = 0.2
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both")), arrest = factor(arrest, c(TRUE, FALSE), c("Yes", "No"))) %>% select(pop_asian, pop_black, pop_latino, pop_white, arrest, responding_dept) %>% rename("Asian" = pop_asian, "Black" = pop_black, "Latino" = pop_latino, "White" = pop_white) %>% pivot_longer(c(Asian, Black, Latino, White)) %>% count(arrest, responding_dept, name, value) %>% crosstab_percent() %>% ggplot(aes(x = arrest, y = percent, color = value, fill = value)) + geom_col() + facet_grid(responding_dept ~ name) + coord_flip() + scale_color_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = percent, colors = color_pal(5, "continuous")) + scale_fill_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = percent, colors = color_pal(5, "continuous")) + scale_y_continuous(labels = percent, breaks = c(0.25, 0.75)) + labs(x = "Arrest Made", y = "Percent of Reported Crimes", color = "Racial/Ethnic \nProportion of \nCensus Block", fill = "Racial/Ethnic \nProportion of \nCensus Block", subtitle = "By disposition and department within UCPD's patrol area, from July 1, 2010 to December 2, 2019", title = "Racial/Ethnic Distributions of Reported Crime Locations") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+```{r arrest-dept-race-2, fig.height=6, fig.width=9}
+break_interval = 0.1
+
+round_to = function(x, to = 1) {
+  sub_func = function(y) {
+    mod = y %% to
+    if (mod < (to / 2)) {
+      return(y - mod)
+    }
+    y + (to - mod)
+  }
+  sapply(x, sub_func)
+}
+
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% mutate(responding_dept = factor(responding_dept, c("cpd", "ucpd", "both"), c("CPD", "UCPD", "Both"))) %>% select(pop_asian, pop_black, pop_latino, pop_white, responding_dept, arrest) %>% rename("Asian" = pop_asian, "Black" = pop_black, "Latino" = pop_latino, "White" = pop_white) %>% pivot_longer(c(Asian, Black, Latino, White)) %>% mutate(value = round_to(value, 0.07)) %>% group_by(responding_dept, name, value) %>% summarise(arrest = mean(arrest)) %>% ggplot(aes(x = value, y = responding_dept, fill = arrest)) + geom_raster() + facet_wrap(~ name) + scale_fill_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = label_percent(accuracy = 1), colors = color_pal(5, "continuous")) + guides(fill = guide_colorsteps(barheight = unit(5, "cm"))) + scale_x_continuous(labels = percent) + labs(x = "Racial/Ethnic Proportion of Census Block", y = "Responding Department", fill = "Probability \nof Arrest", subtitle = "By disposition and department within UCPD's patrol area, from July 1, 2010 to December 2, 2019", title = "Racial/Ethnic Distributions of Reported Crime Locations") + theme_day(base_family = "Pragati Narrow", base_size = 18) 
+```
+
+```{r race-cat-n, fig.height=6, fig.width=9}
+merged_crime_data %>% 
+  filter(!is.na(responding_dept), in_ucpd_bound, total_pop > 50) %>% 
+  select(primary_type, block_id) %>% 
+  count(block_id, primary_type) %>% 
+  left_join(merged_crime_data %>% 
+              select(pop_asian, pop_black, pop_latino, pop_white, total_pop, block_id) %>% 
+              distinct()) %>% 
+  mutate(n_adj = n / total_pop * 1000) %>% 
+  rename("Asian" = pop_asian, "Black" = pop_black, "Latino" = pop_latino, "White" = pop_white) %>%
+  pivot_longer(c(Asian, Black, Latino, White)) %>% 
+  mutate(value = round_to(value, 0.2)) %>% 
+  ggplot(aes(x = value, y = primary_type, fill = n_adj)) + 
+  geom_raster() + 
+  facet_wrap(~ name, nrow = 1) + 
+  scale_x_continuous(labels = percent, breaks = c(0.25, 0.75)) + 
+  scale_fill_stepsn(n.breaks = 6, trans = "log10", labels = round, colors = color_pal(5, "continuous")) + 
+  guides(fill = guide_colorsteps(barheight = unit(5, "cm"))) + 
+  labs(x = "Racial/Ethnic Proportion of Census Block", 
+       y = "Crime Category", 
+       fill = "Crime Reports \nper 1000 People", 
+       subtitle = "By category within UCPD's patrol area, from July 1, 2010 to December 2, 2019", 
+       title = "Racial/Ethnic Distributions of Reported Crime Locations") + 
+  theme_day(base_family = "Pragati Narrow", base_size = 18)
+```
+
+```{r race-cat-arrest, fig.height=6, fig.width=9.5}
+break_interval = 0.1
+merged_crime_data %>% filter(!is.na(responding_dept), in_ucpd_bound) %>% select(pop_asian, pop_black, pop_latino, pop_white, primary_type, arrest) %>% rename("Asian" = pop_asian, "Black" = pop_black, "Latino" = pop_latino, "White" = pop_white) %>% pivot_longer(c(Asian, Black, Latino, White)) %>% mutate(value = round_to(value, 0.2)) %>% group_by(primary_type, name, value) %>% summarise(arrest = mean(arrest)) %>% ggplot(aes(x = value, y = primary_type, fill = arrest)) + geom_raster() + facet_wrap(~ name, nrow = 1) + scale_x_continuous(labels = percent, breaks = c(0.25, 0.75)) + scale_fill_stepsn(breaks = seq(break_interval, 1 - break_interval, by = break_interval), labels = label_percent(accuracy = 1), colors = color_pal(5, "continuous")) + guides(fill = guide_colorsteps(barheight = unit(5, "cm"))) + labs(x = "Racial/Ethnic Proportion of Census Block", y = "Crime Category", fill = "Probability \nof Arrest", subtitle = "By disposition and category within UCPD's patrol area, from July 1, 2010 to December 2, 2019", title = "Racial/Ethnic Distributions of Reported Crime Locations") + theme_day(base_family = "Pragati Narrow", base_size = 18)
+```
+
 
 Overall, both departments respond very similarly to crimes, when it comes to making an arrest. Thefts, harassment, damage to property, burglary, and deceptive practice, all have similarly low arrest rates among both departments, while interference with a public officer is very likely to end in arrest regardless of who responds. However, the UCPD appears to be much more lenient with crimes involving, substance abuse, as for both narcotics crimes and liquor law violations, the CPD has quite a high arrest rate, while University officers are much less likely to perform an arrest. However, the UCPD does have a slightly greater tendency to make an arrest for trespassing and battery than officers from the city.
 
