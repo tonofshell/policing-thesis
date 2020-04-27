@@ -1,0 +1,158 @@
+% ---- ETD Document Class and Useful Packages ---- %
+\documentclass{ucetd}
+\usepackage{subfigure,epsfig,amsfonts}
+\usepackage{natbib}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% RMarkdown Stuff %
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{booktabs}
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode=true}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+%\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provides euro and other symbols
+\else % if luatex or xelatex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={Co-policing Surrounding Hyde Park},
+  pdfauthor={Adam Shelton},
+  hidelinks,
+}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+
+$if(draft)$
+\usepackage{draftwatermark}
+\SetWatermarkText{DRAFT}
+\SetWatermarkScale{1}
+$endif$
+
+%% Use these commands to set biographic information for the title page:
+\title{$title$}
+\type{$type$}
+\university{$university$}
+\location{$location$}
+\author{$author$}
+\department{$department$}
+\division{$division$}
+\degree{$degree$}
+\date{$date$}
+\advisor{$advisor$}
+\advisordept{$advisordept$}
+
+%% Use these commands to set a dedication and epigraph text
+$if(dedication)$
+\dedication{$dedication$}
+$endif$
+$if(epigraph)$
+\epigraph{$epigraph$}
+$endif$
+
+$for(header-includes)$
+$header-includes$
+$endfor$
+
+$if(highlighting-macros)$
+$highlighting-macros$
+$endif$
+
+% Remove Chapter N Headings and Adjust spacing
+\usepackage[compact]{titlesec}
+
+% \titleformat{\chapter}[display]
+%   {\normalfont\bfseries\center}{}{0pt}{\Large\vspace{0pt}}
+
+\titlespacing*{\chapter}{0pt}{0pt}{0pt}
+
+% Place all figures at end
+\usepackage[nolists,heads]{endfloat}
+
+\renewcommand{\efloatseparator}{\mbox{}}
+
+\let\normallongtable=\longtable
+\renewcommand{\longtable}{\clearpage\normallongtable}
+
+\DeclareDelayedFloatFlavour*{longtable}{table}
+
+% Maintain figures aspect ratio
+\setkeys{Gin}{width=0.8\textwidth,height=0.8\textheight,keepaspectratio}
+
+% Allow box characters for skimr
+\usepackage{pmboxdraw}
+
+\begin{document}
+%% Basic setup commands
+% If you don't want a title page comment out the next line and uncomment the line after it:
+\maketitle
+%\omittitle
+
+% These lines can be commented out to disable the copyright/dedication/epigraph pages
+\makecopyright
+$if(dedication)$
+\makededication
+$endif$
+$if(epigraph)$
+\makeepigraph
+$endif$
+\abstract{$abstract$}
+
+
+%% Make the various tables of contents
+\tableofcontents
+\listoffigures
+\listoftables
+
+%\acknowledgments
+% Enter Acknowledgements here
+
+% Enter Abstract here
+
+\mainmatter
+$body$
+
+% Format a LaTeX bibliography
+%\makebibliography
+
+\chapter{Appendices}
+
+\end{document}
+
+
