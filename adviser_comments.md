@@ -18,21 +18,21 @@ surrounding neighborhoods, sharing the area with Chicago Police patrols (Sherman
 - [ ] should follow lit review with a section that clearly lays out your research questions, which should flow directly from lit review, why they're significant questions to study, and your argument about the processes you're studying, then link that to the data you've collected and the analysis you've conducted.
 
 ### Inequality in Policing
-- [ ] need better transition. what questions or concerns are raised from what we know about public policing that should shape how we think about private policing?
+- [x] need better transition. what questions or concerns are raised from what we know about public policing that should shape how we think about private policing?
   - **In reference to:** end of section
 
 ### Private Policing
-- [ ] again needs smoother transition
+- [x] again needs smoother transition
   - **In reference to:** end of section
 
 ### Campus Policing
-- [ ] clarify
+- [x] clarify
   - **In reference to:** *While campus police work to maintain a “good image” of the school by enforcing campus rules for students (Jacobsen 2015), they can still benefit the public, __sometimes more effectively than municipal police departments__*
 
 ## Results
 
 ### Visual Analysis
-- [ ] contextualize the discussion of results by linking back to your research questions and argument. you said little about crime rates up to this point so you may also want to include more discussion in the introduction, lit review, and argument sections about why it's important to look at crime rates to understand private policing and its relationship to public policing
+- [x] contextualize the discussion of results by linking back to your research questions and argument. you said little about crime rates up to this point so you may also want to include more discussion in the introduction, lit review, and argument sections about why it's important to look at crime rates to understand private policing and its relationship to public policing
 - [x] I'd like to see the presentation of results have a closer link to the broader themes you're exploring in the thesis, using analytically relevant categories rather than descriptive themes such as which police department responded
 
 ### Model Analysis

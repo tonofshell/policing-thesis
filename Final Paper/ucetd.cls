@@ -244,12 +244,11 @@
 
 % Chapter/Section formatting
 \renewcommand{\@makechapterhead}[1]{{
-
-        \setlength{\topmargin}{0.5in}  	% really 1.5in, added by bph
+        % \setlength{\topmargin}{0.5in}  	% really 1.5in, added by bph
                                       			% to meet OAP standards
-        \normalfont\large\bfseries
+        % \normalfont\large\bfseries
         \begin{center}
-        \etdChapterStyle{\@chapapp{ \thechapter}}  %  CHAPTER # or APPENDIX
+        % \etdChapterStyle{\@chapapp{ \thechapter}}  %  CHAPTER # or APPENDIX
         
         
         \etdChapterStyle{#1}                       %     TITLE OF CHAPTER
@@ -258,7 +257,7 @@
 
 }}
 \renewcommand{\@makeschapterhead}[1]{{  
-        \setlength{\topmargin}{0.5in}   % really 1.5in, added by bph
+        % \setlength{\topmargin}{0.5in}   % really 1.5in, added by bph
                                         % to meet OAP standards
         \normalfont\large\bfseries
         \begin{center}

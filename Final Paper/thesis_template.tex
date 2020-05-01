@@ -59,6 +59,9 @@
 \def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
 \makeatother
 
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
 $if(draft)$
 \usepackage{draftwatermark}
 \SetWatermarkText{DRAFT}
@@ -97,10 +100,10 @@ $endif$
 % Remove Chapter N Headings and Adjust spacing
 \usepackage[compact]{titlesec}
 
-% \titleformat{\chapter}[display]
-%   {\normalfont\bfseries\center}{}{0pt}{\Large\vspace{0pt}}
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\center}{}{0pt}{\Large\vspace{0pt}}
 
-\titlespacing*{\chapter}{0pt}{0pt}{0pt}
+\titlespacing*{\chapter}{0pt}{-50pt}{0pt}
 
 % Place all figures at end
 \usepackage[nolists,heads]{endfloat}
