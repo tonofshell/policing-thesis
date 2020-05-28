@@ -7,6 +7,21 @@
 \usepackage{amsthm}
 
 % RMarkdown Stuff %
+
+%% Use these commands to set biographic information for the title page:
+\title{$title$}
+\type{$type$}
+\university{$university$}
+\location{$location$}
+\author{$author$}
+\department{$department$}
+\division{$division$}
+\degree{$degree$}
+\date{$date$}
+\advisor{$advisor$}
+\advisordept{$advisordept$}
+\preceptor{$preceptor$}
+
 \usepackage{hyperref}
 \usepackage{longtable}
 \usepackage{booktabs}
@@ -47,8 +62,8 @@
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
 \hypersetup{
-  pdftitle={Co-policing Surrounding Hyde Park},
-  pdfauthor={Adam Shelton},
+  pdftitle={$title$},
+  pdfauthor={$author$},
   hidelinks,
 }
 \urlstyle{same} % disable monospaced font for URLs
@@ -68,19 +83,7 @@ $if(draft)$
 \SetWatermarkScale{1}
 $endif$
 
-%% Use these commands to set biographic information for the title page:
-\title{$title$}
-\type{$type$}
-\university{$university$}
-\location{$location$}
-\author{$author$}
-\department{$department$}
-\division{$division$}
-\degree{$degree$}
-\date{$date$}
-\advisor{$advisor$}
-\advisordept{$advisordept$}
-\preceptor{$preceptor$}
+
 
 %% Use these commands to set a dedication and epigraph text
 $if(dedication)$
