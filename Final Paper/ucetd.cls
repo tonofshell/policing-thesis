@@ -63,20 +63,23 @@
 			{\@university}\\
 			\vspace{0.6in}
 			{\Large\textbf{\@title}}\\
-			\vspace{0.8in}
-			A {\@type} Submitted to\\
-			The Faculty of the Division of the {\@division}\\
-			In Candidacy for the Degree of\\
-			{\@degree}\\
-			\ \\
-			Department of {\@department}\\
 			\vspace{0.6in}
+			A {\@type} Submitted in Partial Fulfillment\\
+			of the\\
+			Requirements for the {\@degree} Degree\\
+			in the\\
+			{\@degree} in {\@department}\\
+			\vspace{0.5in}
 			by\\
 			{\large\textbf\@author}\\
-			\vspace{0.6in}
+			\vspace{0.5in}
 			Under the Advisement of\\
 			{\@advisor}\\
 			Department of {\@advisordept}\\
+			\vspace*{0.1in}
+			and \\
+			\vspace*{0.1in}
+			Preceptor {\@preceptor}\\
 			\vspace{0.6in}
 			{\@location}\\
 			{\@date}
@@ -221,6 +224,7 @@
 \newcommand{\advisordept}[1]{\gdef\@advisordept{#1}}
 \newcommand{\university}[1]{\gdef\@university{#1}}
 \newcommand{\location}[1]{\gdef\@location{#1}}
+\newcommand{\preceptor}[1]{\gdef\@preceptor{#1}}
 
 % Output title page
 \renewcommand{\maketitle}{

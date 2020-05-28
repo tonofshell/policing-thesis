@@ -3,14 +3,15 @@ title: Co-policing Surrounding the University of Chicago
 
 
 author: Adam Shelton
-university: University of Chicago
+university: The University of Chicago
 location: Chicago, IL
-type: Thesis
+type: Paper
 department: Computational Social Science
 division: Social Sciences
 degree: Master of Arts
 advisor: Assistant Professor Yanilda María González
 advisordept: Social Service Administration
+preceptor: Joshua Mausolf
 date: June 2020
 draft: false
 abstract: |
